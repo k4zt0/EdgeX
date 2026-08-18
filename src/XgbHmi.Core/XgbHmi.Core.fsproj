@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>XgbHmi.Core</AssemblyName>
+    <RootNamespace>XgbHmi.Core</RootNamespace>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <WarningLevel>3</WarningLevel>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Model.fs" />
+    <Compile Include="Layout.fs" />
+    <Compile Include="I18n.fs" />
+    <Compile Include="ProjectIo.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Assets/lang/*.json" LogicalName="XgbHmi.Core.lang.%(Filename).json" />
+  </ItemGroup>
+</Project>

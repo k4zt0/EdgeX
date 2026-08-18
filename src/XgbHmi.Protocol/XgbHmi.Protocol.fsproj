@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>XgbHmi.Protocol</AssemblyName>
+    <RootNamespace>XgbHmi.Protocol</RootNamespace>
+    <WarningLevel>3</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Address.fs" />
+    <Compile Include="XgtClient.fs" />
+  </ItemGroup>
+</Project>

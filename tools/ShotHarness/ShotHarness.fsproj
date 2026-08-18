@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>ShotHarness</AssemblyName>
+    <WarningLevel>3</WarningLevel>
+    <!-- Bitmap.Save 의 구식 오버로드 경고. 개발용 도구라 그대로 둔다. -->
+    <NoWarn>FS0044</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="DragProbe.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Headless" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Skia" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/XgbHmi.App/XgbHmi.App.fsproj" />
+  </ItemGroup>
+</Project>

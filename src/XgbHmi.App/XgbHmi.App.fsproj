@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>XgbHmiDesigner</AssemblyName>
+    <RootNamespace>XgbHmi.App</RootNamespace>
+    <Nullable>disable</Nullable>
+    <WarningLevel>3</WarningLevel>
+    <ApplicationManifest Condition="'$(OS)' == 'Windows_NT'"></ApplicationManifest>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Themes/Palette.fs" />
+    <Compile Include="Services/AppSettings.fs" />
+    <Compile Include="Services/ThemeService.fs" />
+    <Compile Include="Services/PlcService.fs" />
+    <Compile Include="ViewModels/ElementVm.fs" />
+    <Compile Include="ViewModels/AppState.fs" />
+    <Compile Include="Views/Ui.fs" />
+    <Compile Include="Views/Dialogs.fs" />
+    <Compile Include="Views/CardFactory.fs" />
+    <Compile Include="Views/RunCanvas.fs" />
+    <Compile Include="Views/ElementTable.fs" />
+    <Compile Include="Views/ProjectTree.fs" />
+    <Compile Include="Views/PropertyPanel.fs" />
+    <Compile Include="Views/OutputPanel.fs" />
+    <Compile Include="Views/MainWindow.fs" />
+    <Compile Include="App.axaml.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../XgbHmi.Core/XgbHmi.Core.fsproj" />
+    <ProjectReference Include="../XgbHmi.Protocol/XgbHmi.Protocol.fsproj" />
+  </ItemGroup>
+</Project>
