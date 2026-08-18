@@ -81,6 +81,7 @@
   "state.on": "ON",
   "state.off": "OFF",
   "state.unknown": "---",
+  "state.fault": "ข้อผิดพลาด",
   "btn.write": "เขียน",
   "btn.ok": "ตกลง",
   "btn.cancel": "ยกเลิก",

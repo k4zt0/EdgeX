@@ -81,6 +81,7 @@
   "state.on": "ON",
   "state.off": "OFF",
   "state.unknown": "---",
+  "state.fault": "عطل",
   "btn.write": "كتابة",
   "btn.ok": "موافق",
   "btn.cancel": "إلغاء",

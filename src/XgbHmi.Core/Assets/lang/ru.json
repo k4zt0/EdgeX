@@ -81,6 +81,7 @@
   "state.on": "ON",
   "state.off": "OFF",
   "state.unknown": "---",
+  "state.fault": "Авария",
   "btn.write": "Записать",
   "btn.ok": "ОК",
   "btn.cancel": "Отмена",

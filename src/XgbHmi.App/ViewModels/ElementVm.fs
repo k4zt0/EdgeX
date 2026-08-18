@@ -25,6 +25,10 @@ type ElementVm(item: HmiItem) as this =
     let mutable width = item.Width
     let mutable height = item.Height
 
+    /// 운전 중 오류 표시용. 프로젝트 파일에 저장하지 않고 PropertyChanged 도 올리지 않는다.
+    /// (알림을 올리면 통신 오류만으로 프로젝트가 '수정됨'이 되어 버린다)
+    let mutable fault: string option = None
+
     let mutable beforeChange: unit -> unit = fun () -> ()
 
     let raise' (propertyName: string) =
@@ -168,6 +172,11 @@ type ElementVm(item: HmiItem) as this =
         this.Y <- ny
         this.Width <- nw
         this.Height <- nh
+
+    /// 이 요소의 마지막 통신 오류. Some 이면 운전 화면에서 빨간색으로 점등된다.
+    member _.Fault
+        with get () = fault
+        and set (v: string option) = fault <- v
 
     member _.ToItem() : HmiItem =
         { Id = id

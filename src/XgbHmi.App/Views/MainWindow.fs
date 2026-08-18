@@ -49,6 +49,8 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     let mutable layoutMode = false
     let mutable writeEnabled = false
     let mutable connected = false
+    /// PLC 통신 전체가 오류 상태인지. 운전 화면의 모든 카드를 빨간색으로 점등하는 데 쓴다.
+    let mutable commFault = false
     let mutable showProjectPanel = true
     let mutable showPropertyPanel = true
     let mutable showOutputPanel = true
@@ -114,6 +116,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                 + (if selected > 0 then "   ·   " + I18n.tf "status.selected" [| box selected |] else "")
 
     let setStatus (kind: ConnState) (detail: string) =
+        commFault <- (kind = Faulted)
         if not (isNull statusText) then
             let p = ThemeService.current ()
             let caption, fill, fg =
@@ -156,7 +159,10 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     // ---------- PLC 값 표시 ----------
     let refreshValues () =
         if not (isNull canvasView) then
-            canvasView.RefreshValues((fun addr -> plc.TryBit addr), (fun addr -> plc.TryWord addr))
+            canvasView.RefreshValues
+                { BitOf = (fun addr -> plc.TryBit addr)
+                  WordOf = (fun addr -> plc.TryWord addr)
+                  CommFault = commFault }
 
     // ---------- 프로젝트 입출력 ----------
     let loadProjectFrom (path: string) =
@@ -221,6 +227,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             | Ok readback ->
                 let elapsed = (DateTime.Now - started).TotalMilliseconds
                 onUi (fun () ->
+                    vm.Fault <- None
                     refreshValues ()
                     let rbText =
                         match readback with
@@ -239,6 +246,8 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                     | _ -> ())
             | Error message ->
                 onUi (fun () ->
+                    vm.Fault <- Some message
+                    refreshValues ()
                     log Failure (sprintf "BIT WRITE ERROR %s (%s) <- %s  %.0f ms : %s" device (xgtName device) (onOff value) (DateTime.Now - started).TotalMilliseconds message)
                     Dialogs.error win (I18n.tf "msg.writeFailed" [| box device; box message |]) |> ignore))
         |> ignore
@@ -257,6 +266,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                 | Ok readback ->
                     let elapsed = (DateTime.Now - started).TotalMilliseconds
                     onUi (fun () ->
+                        vm.Fault <- None
                         refreshValues ()
                         let rbText =
                             match readback with
@@ -269,10 +279,14 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                         | _ -> ())
                 | Error message ->
                     onUi (fun () ->
+                        vm.Fault <- Some message
+                        refreshValues ()
                         log Failure (sprintf "BIT WRITE ERROR %s (%s): %s" device (xgtName device) message)
                         Dialogs.error win (I18n.tf "msg.writeFailed" [| box device; box message |]) |> ignore)
             | Error message ->
                 onUi (fun () ->
+                    vm.Fault <- Some message
+                    refreshValues ()
                     log Failure (sprintf "TOGGLE READ ERROR %s (%s): %s" device (xgtName device) message)
                     Dialogs.error win (I18n.tf "msg.toggleReadFailed" [| box device; box message |]) |> ignore))
         |> ignore
@@ -286,6 +300,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             | Ok readback ->
                 let elapsed = (DateTime.Now - started).TotalMilliseconds
                 onUi (fun () ->
+                    vm.Fault <- None
                     refreshValues ()
                     log Success (
                         sprintf
@@ -293,6 +308,8 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                             device (xgtName device) entered raw readback readback (int16 readback) elapsed vm.Name))
             | Error message ->
                 onUi (fun () ->
+                    vm.Fault <- Some message
+                    refreshValues ()
                     log Failure (sprintf "WORD WRITE ERROR %s (%s) <- %d: %s" device (xgtName device) entered message)
                     Dialogs.error win (I18n.tf "msg.writeFailed" [| box device; box message |]) |> ignore))
         |> ignore
@@ -321,8 +338,14 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
         if not (isNull ipBox) then ipBox.IsEnabled <- not isConnected
         if not (isNull portBox) then portBox.IsEnabled <- not isConnected
 
+    /// 지난 통신 오류 점등을 모두 끈다. (연결/해제할 때)
+    let clearFaults () =
+        for e in state.Elements do
+            e.Fault <- None
+
     let disconnect () =
         plc.Disconnect()
+        clearFaults ()
         setConnectedUi false
         writeEnabled <- false
         if not (isNull writeToggle) then
@@ -331,6 +354,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             suppressWriteToggle <- false
         updateWriteBadge ()
         setStatus Disconnected ""
+        refreshValues ()
 
     let connect () =
         applyConnectionFieldsToState ()
@@ -343,12 +367,14 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             onUi (fun () ->
                 match result with
                 | Ok _ ->
+                    clearFaults ()
                     setConnectedUi true
                     setStatus Online (DateTime.Now.ToString "HH:mm:ss.fff")
                     refreshValues ()
                 | Error message ->
                     setConnectedUi false
-                    setStatus Faulted message))
+                    setStatus Faulted message
+                    refreshValues ()))
         |> ignore
 
     // ---------- 편집 명령 ----------
@@ -1154,6 +1180,8 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             | Faulted ->
                 setStatus Faulted detail
                 updateLogStats ()
+                // 통신이 끊기면 운전 화면 카드를 모두 빨간색으로 점등한다.
+                refreshValues ()
             | Connecting -> setStatus Connecting ""
             | Disconnected -> setStatus Disconnected ""))
 

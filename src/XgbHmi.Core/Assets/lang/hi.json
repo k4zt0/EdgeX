@@ -81,6 +81,7 @@
   "state.on": "ON",
   "state.off": "OFF",
   "state.unknown": "---",
+  "state.fault": "खराबी",
   "btn.write": "लिखें",
   "btn.ok": "ठीक है",
   "btn.cancel": "रद्द करें",

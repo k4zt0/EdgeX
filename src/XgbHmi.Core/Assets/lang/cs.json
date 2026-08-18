@@ -81,6 +81,7 @@
   "state.on": "ON",
   "state.off": "OFF",
   "state.unknown": "---",
+  "state.fault": "Porucha",
   "btn.write": "Zapsat",
   "btn.ok": "OK",
   "btn.cancel": "Zrušit",

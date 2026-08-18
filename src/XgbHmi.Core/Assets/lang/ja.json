@@ -81,6 +81,7 @@
   "state.on": "ON",
   "state.off": "OFF",
   "state.unknown": "---",
+  "state.fault": "異常",
   "btn.write": "書込",
   "btn.ok": "OK",
   "btn.cancel": "キャンセル",

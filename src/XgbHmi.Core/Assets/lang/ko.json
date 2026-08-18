@@ -81,6 +81,7 @@
   "state.on": "ON",
   "state.off": "OFF",
   "state.unknown": "---",
+  "state.fault": "오류",
   "btn.write": "쓰기",
   "btn.ok": "확인",
   "btn.cancel": "취소",

@@ -81,6 +81,7 @@
   "state.on": "ON",
   "state.off": "OFF",
   "state.unknown": "---",
+  "state.fault": "FAULT",
   "btn.write": "Write",
   "btn.ok": "OK",
   "btn.cancel": "Cancel",

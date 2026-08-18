@@ -600,9 +600,9 @@ type RunCanvasView(state: AppState, host: CanvasHost) =
         refreshSelectionVisual ()
 
     /// PLC 값 갱신
-    member _.RefreshValues(bitOf: string -> bool option, wordOf: string -> uint16 option) =
+    member _.RefreshValues(status: CardFactory.RuntimeStatus) =
         for kv in cards do
-            kv.Value.Refresh bitOf wordOf
+            kv.Value.Refresh status
 
     /// 화면 가운데로 특정 요소를 보이게 한다 (트리에서 선택했을 때)
     member _.BringIntoView(vm: ElementVm) =
