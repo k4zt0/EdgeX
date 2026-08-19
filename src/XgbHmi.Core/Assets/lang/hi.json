@@ -27,6 +27,7 @@
   "cmd.addNumInput": "संख्या इनपुट",
   "cmd.addNumDisplay": "संख्या प्रदर्शन",
   "cmd.addText": "पाठ",
+  "cmd.addElement": "तत्व जोड़ें",
   "cmd.addSwitchBatch": "एक साथ कई स्विच जोड़ें",
   "cmd.connect": "कनेक्ट",
   "cmd.disconnect": "डिस्कनेक्ट",

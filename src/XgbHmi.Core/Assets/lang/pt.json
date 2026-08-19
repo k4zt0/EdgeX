@@ -27,6 +27,7 @@
   "cmd.addNumInput": "Entrada numérica",
   "cmd.addNumDisplay": "Indicador numérico",
   "cmd.addText": "Texto",
+  "cmd.addElement": "Adicionar elemento",
   "cmd.addSwitchBatch": "Adicionar botões em lote",
   "cmd.connect": "Conectar",
   "cmd.disconnect": "Desconectar",

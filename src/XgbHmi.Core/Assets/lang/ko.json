@@ -27,6 +27,7 @@
   "cmd.addNumInput": "숫자입력",
   "cmd.addNumDisplay": "숫자표시",
   "cmd.addText": "텍스트",
+  "cmd.addElement": "요소 추가",
   "cmd.addSwitchBatch": "스위치 수량 추가",
   "cmd.connect": "연결",
   "cmd.disconnect": "연결 해제",

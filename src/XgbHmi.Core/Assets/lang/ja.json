@@ -27,6 +27,7 @@
   "cmd.addNumInput": "数値入力",
   "cmd.addNumDisplay": "数値表示",
   "cmd.addText": "テキスト",
+  "cmd.addElement": "要素を追加",
   "cmd.addSwitchBatch": "スイッチを一括追加",
   "cmd.connect": "接続",
   "cmd.disconnect": "切断",

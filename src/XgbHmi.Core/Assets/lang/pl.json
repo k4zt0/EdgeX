@@ -27,6 +27,7 @@
   "cmd.addNumInput": "Wprowadzanie liczby",
   "cmd.addNumDisplay": "Wyświetlanie liczby",
   "cmd.addText": "Tekst",
+  "cmd.addElement": "Dodaj element",
   "cmd.addSwitchBatch": "Dodaj przyciski zbiorczo",
   "cmd.connect": "Połącz",
   "cmd.disconnect": "Rozłącz",

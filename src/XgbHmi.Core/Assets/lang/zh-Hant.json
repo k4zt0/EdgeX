@@ -27,6 +27,7 @@
   "cmd.addNumInput": "數值輸入",
   "cmd.addNumDisplay": "數值顯示",
   "cmd.addText": "文字",
+  "cmd.addElement": "新增元件",
   "cmd.addSwitchBatch": "批次新增開關",
   "cmd.connect": "連線",
   "cmd.disconnect": "中斷連線",

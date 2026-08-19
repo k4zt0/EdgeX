@@ -189,3 +189,14 @@ let radioMenuItem (header: string) (isChecked: bool) (onClick: unit -> unit) =
     mi
 
 let separatorItem () = Separator() :> Control
+
+/// 눌렀을 때 목록이 펼쳐지는 툴바 버튼. (버튼 여러 개를 하나로 모을 때)
+/// 테마를 그대로 쓰려고 DropDownButton 대신 Flyout 을 단 보통 버튼으로 만든다.
+let menuButton (label: string) (tip: string) (items: (string * (unit -> unit)) list) =
+    let b = button (label + "  ▾") [ "tool" ] (fun () -> ())
+    let flyout = MenuFlyout()
+    for header, action in items do
+        flyout.Items.Add(menuItem header action) |> ignore
+    b.Flyout <- flyout
+    if not (System.String.IsNullOrWhiteSpace tip) then ToolTip.SetTip(b, tip)
+    b

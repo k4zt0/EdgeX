@@ -27,6 +27,7 @@
   "cmd.addNumInput": "Ingresso numerico",
   "cmd.addNumDisplay": "Display numerico",
   "cmd.addText": "Testo",
+  "cmd.addElement": "Aggiungi elemento",
   "cmd.addSwitchBatch": "Aggiungi pulsanti in blocco",
   "cmd.connect": "Connetti",
   "cmd.disconnect": "Disconnetti",

@@ -27,6 +27,7 @@
   "cmd.addNumInput": "Saisie numérique",
   "cmd.addNumDisplay": "Affichage numérique",
   "cmd.addText": "Texte",
+  "cmd.addElement": "Ajouter un élément",
   "cmd.addSwitchBatch": "Ajouter des boutons en série",
   "cmd.connect": "Connecter",
   "cmd.disconnect": "Déconnecter",

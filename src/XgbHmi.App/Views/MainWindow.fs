@@ -786,9 +786,12 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             s.Margin <- Thickness(0.0, 2.0, 0.0, 2.0)
             s :> Control
 
-        let addButtons =
-            ItemKind.all
-            |> List.map (fun kind -> Ui.toolButton ("＋ " + I18n.kindLabel kind) "" (fun () -> addElement kind) :> Control)
+        // 종류별 추가 버튼을 늘어놓는 대신 하나로 모은다. (툴바가 길어지지 않도록)
+        let addButton =
+            Ui.menuButton
+                ("＋ " + I18n.t "cmd.addElement")
+                ""
+                (ItemKind.all |> List.map (fun kind -> I18n.kindLabel kind, (fun () -> addElement kind)))
 
         let layoutLabel (on: bool) =
             I18n.t "cmd.layoutMode" + " : " + (if on then I18n.t "state.on" else I18n.t "state.off")
@@ -864,8 +867,8 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                       connectButton
                       writeToggle ]
               Ui.vSep ()
-              group addButtons
-              Ui.toolButton (I18n.t "cmd.addSwitchBatch") "" addSwitchBatch
+              group [ addButton :> Control
+                      Ui.toolButton (I18n.t "cmd.addSwitchBatch") "" addSwitchBatch ]
               Ui.vSep ()
               group [ Ui.toolButton (I18n.t "cmd.undo") "Ctrl+Z" undo
                       Ui.toolButton (I18n.t "cmd.redo") "Ctrl+Y" redo
