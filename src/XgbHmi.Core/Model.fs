@@ -6,6 +6,8 @@ open System
 type ItemKind =
     | Switch
     | Lamp
+    /// 조작 버튼과 램프를 한 장에 합친 것. 누르면서 상태도 함께 본다.
+    | SwitchLamp
     | NumInput
     | NumDisplay
     | Text
@@ -14,6 +16,7 @@ type ItemKind =
         match this with
         | Switch -> "SWITCH"
         | Lamp -> "LAMP"
+        | SwitchLamp -> "SWITCH_LAMP"
         | NumInput -> "NUM_INPUT"
         | NumDisplay -> "NUM_DISPLAY"
         | Text -> "TEXT"
@@ -22,6 +25,7 @@ type ItemKind =
         match this with
         | Switch -> "스위치"
         | Lamp -> "램프"
+        | SwitchLamp -> "스위치/램프"
         | NumInput -> "숫자입력"
         | NumDisplay -> "숫자표시"
         | Text -> "텍스트"
@@ -29,7 +33,7 @@ type ItemKind =
 [<RequireQualifiedAccess>]
 module ItemKind =
 
-    let all = [ Switch; Lamp; NumInput; NumDisplay; Text ]
+    let all = [ Switch; Lamp; SwitchLamp; NumInput; NumDisplay; Text ]
 
     let codes = all |> List.map (fun k -> k.Code)
 
@@ -37,16 +41,20 @@ module ItemKind =
         match (if isNull s then "" else s.Trim().ToUpperInvariant()) with
         | "SWITCH" -> Some Switch
         | "LAMP" -> Some Lamp
+        | "SWITCH_LAMP" -> Some SwitchLamp
         | "NUM_INPUT" -> Some NumInput
         | "NUM_DISPLAY" -> Some NumDisplay
         | "TEXT" -> Some Text
         | _ -> None
 
     /// 비트(M/P) 주소를 쓰는 종류
-    let isBit kind = kind = Switch || kind = Lamp
+    let isBit kind = kind = Switch || kind = Lamp || kind = SwitchLamp
 
     /// D WORD 주소를 쓰는 종류
     let isWord kind = kind = NumInput || kind = NumDisplay
+
+    /// 조작 버튼이 있어서 '스위치 동작' 을 쓰는 종류
+    let hasAction kind = kind = Switch || kind = SwitchLamp
 
 
 /// 스위치 동작. 라벨 문자열은 기존 프로젝트 XML과 동일하게 유지한다.
@@ -55,7 +63,6 @@ type SwitchAction =
     | On
     | Off
     | Momentary
-    | OnOff
 
     member this.Code =
         match this with
@@ -63,12 +70,11 @@ type SwitchAction =
         | On -> "ON"
         | Off -> "OFF"
         | Momentary -> "순간"
-        | OnOff -> "ON/OFF"
 
 [<RequireQualifiedAccess>]
 module SwitchAction =
 
-    let all = [ Toggle; On; Off; Momentary; OnOff ]
+    let all = [ Toggle; On; Off; Momentary ]
 
     let codes = all |> List.map (fun a -> a.Code)
 
@@ -77,7 +83,8 @@ module SwitchAction =
         | "ON" -> On
         | "OFF" -> Off
         | "순간" -> Momentary
-        | "ON/OFF" -> OnOff
+        // 예전 파일의 'ON/OFF'(ON·OFF 두 버튼)는 없앴다. 한 버튼으로 양쪽을 다루는 토글로 읽는다.
+        | "ON/OFF" -> Toggle
         | _ -> Toggle
 
 
@@ -154,6 +161,15 @@ module Item =
         match kind with
         | Switch -> { empty with Id = newId (); Kind = Switch; Name = "새 스위치"; Device = "M1000"; Action = Toggle }
         | Lamp -> { empty with Id = newId (); Kind = Lamp; Name = "새 램프"; Device = "P00000" }
+        | SwitchLamp ->
+            { empty with
+                Id = newId ()
+                Kind = SwitchLamp
+                Name = "새 스위치/램프"
+                Device = "M1000"
+                Action = Toggle
+                Width = 190
+                Height = 150 }
         | NumInput ->
             { empty with
                 Id = newId ()
@@ -208,7 +224,8 @@ module Item =
                 let c = Char.ToUpperInvariant h.Device.[0]
                 match kind with
                 | Switch
-                | Lamp ->
+                | Lamp
+                | SwitchLamp ->
                     if c <> 'M' && c <> 'P' then
                         Error(sprintf "'%s'은 M 또는 P 비트 주소를 사용해야 합니다." h.Name)
                     elif not (blank h.MonitorDevice) then

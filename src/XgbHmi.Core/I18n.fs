@@ -142,6 +142,7 @@ module I18n =
         match kind with
         | Switch -> t "type.switch"
         | Lamp -> t "type.lamp"
+        | SwitchLamp -> t "type.switchLamp"
         | NumInput -> t "type.numInput"
         | NumDisplay -> t "type.numDisplay"
         | Text -> t "type.text"
@@ -153,4 +154,3 @@ module I18n =
         | On -> t "action.on"
         | Off -> t "action.off"
         | Momentary -> t "action.momentary"
-        | OnOff -> t "action.onoff"

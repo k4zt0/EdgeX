@@ -39,7 +39,8 @@ type RuntimeCard =
 
 let private kindColor (p: Palette) (kind: ItemKind) =
     match kind with
-    | Switch -> p.KindSwitch
+    | Switch
+    | SwitchLamp -> p.KindSwitch
     | Lamp -> p.KindLamp
     | NumInput
     | NumDisplay -> p.KindNumeric
@@ -126,9 +127,10 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
 
     // ---- 조작 버튼 라이팅 ----
     // 버튼에는 그림자를 줄 수 없어 테두리로 한 겹 감싸고 그 테두리를 빛나게 한다.
-    let mutable onLamp: (Border * Button) option = None
-    let mutable offLamp: (Border * Button) option = None
     let mutable actionLamp: (Border * Button) option = None
+    /// 램프 표시(원 + 배경). 램프와 스위치/램프가 함께 쓴다.
+    let mutable lampDot: Ellipse = null
+    let mutable lampHolder: Border = null
     /// 순간 스위치를 누르고 있는 동안은 PLC 응답을 기다리지 않고 바로 점등한다.
     let held = ref false
 
@@ -152,6 +154,69 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
                 b.ClearValue Primitives.TemplatedControl.BorderBrushProperty
                 host.BoxShadow <- BoxShadows()
 
+    /// 램프 표시 한 벌 (원 + 큰 글자를 담은 상자)
+    let makeIndicator () =
+        let dot = Ellipse(Width = 16.0, Height = 16.0, Fill = Ui.brush p.Off)
+        let text = Ui.title 17.0 (I18n.t "state.off")
+        text.Foreground <- Ui.brush p.TextMuted
+        let row = Ui.stackH 9.0 [ dot; text ]
+        row.HorizontalAlignment <- HorizontalAlignment.Center
+        row.VerticalAlignment <- VerticalAlignment.Center
+        let holder =
+            Border(
+                Background = Ui.tint p.Off 0.12,
+                CornerRadius = CornerRadius 6.0,
+                Margin = Thickness(0.0, 5.0, 0.0, 0.0),
+                Child = row
+            )
+        holder, dot, text
+
+    /// 조작 버튼 영역. 감싼 테두리를 함께 돌려주어 점등에 쓴다.
+    let makeControlArea () : Control * (Border * Button) option =
+        match vm.Action with
+        | Momentary ->
+            let b = Ui.button (I18n.t "action.momentary") [ "hmi" ] (fun () -> ())
+            b.MinHeight <- 28.0
+            b.VerticalAlignment <- VerticalAlignment.Stretch
+            let host = makeLamp b
+            host.Margin <- Thickness(0.0, 5.0, 0.0, 0.0)
+            let lamp = Some(host, b)
+            // 누른 즉시 점등하고, 뗀 뒤에는 다음 갱신이 실제 비트로 다시 맞춘다.
+            let release () =
+                if held.Value then
+                    held.Value <- false
+                    light lamp None
+                    if interactive () then cb.MomentaryUp vm
+            b.AddHandler(
+                InputElement.PointerPressedEvent,
+                (fun _ (e: PointerPressedEventArgs) ->
+                    if interactive () && e.GetCurrentPoint(b).Properties.IsLeftButtonPressed then
+                        held.Value <- true
+                        light lamp (Some p.On)
+                        cb.MomentaryDown vm),
+                Interactivity.RoutingStrategies.Tunnel
+            )
+            b.AddHandler(
+                InputElement.PointerReleasedEvent,
+                (fun _ (_: PointerReleasedEventArgs) -> release ()),
+                Interactivity.RoutingStrategies.Tunnel
+            )
+            b.PointerExited.Add(fun _ -> release ())
+            host :> Control, lamp
+        | action ->
+            // v6 와 같은 동작: ON 은 ON 만, OFF 는 OFF 만 쓰고, 토글만 읽어서 반전한다.
+            let label, press =
+                match action with
+                | On -> I18n.t "action.on", fun () -> cb.WriteOn vm
+                | Off -> I18n.t "action.off", fun () -> cb.WriteOff vm
+                | _ -> I18n.t "action.toggle", fun () -> cb.Toggle vm
+            let b = Ui.button label [ "hmi" ] (fun () -> if interactive () then press ())
+            b.MinHeight <- 28.0
+            b.VerticalAlignment <- VerticalAlignment.Stretch
+            let host = makeLamp b
+            host.Margin <- Thickness(0.0, 5.0, 0.0, 0.0)
+            host :> Control, Some(host, b)
+
     match vm.Kind with
     | Text ->
         let t = TextBlock(Text = vm.Name, TextWrapping = TextWrapping.Wrap, FontFamily = Ui.uiFont, FontSize = 13.0, FontWeight = FontWeight.SemiBold)
@@ -169,96 +234,34 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
             Grid.SetRow(monitorText, 2)
             layout.Children.Add monitorText
 
-        let controlArea =
-            match vm.Action with
-            | OnOff ->
-                let g = Grid(Margin = Thickness(0.0, 5.0, 0.0, 0.0), MinHeight = 28.0)
-                g.ColumnDefinitions.Add(ColumnDefinition(GridLength(1.0, GridUnitType.Star)))
-                g.ColumnDefinitions.Add(ColumnDefinition(GridLength(6.0, GridUnitType.Pixel)))
-                g.ColumnDefinitions.Add(ColumnDefinition(GridLength(1.0, GridUnitType.Star)))
-                let on = Ui.button (I18n.t "action.on") [ "hmi" ] (fun () -> if interactive () then cb.WriteOn vm)
-                let off = Ui.button (I18n.t "action.off") [ "hmi" ] (fun () -> if interactive () then cb.WriteOff vm)
-                let onHost = makeLamp on
-                let offHost = makeLamp off
-                onHost.VerticalAlignment <- VerticalAlignment.Center
-                offHost.VerticalAlignment <- VerticalAlignment.Center
-                onLamp <- Some(onHost, on)
-                offLamp <- Some(offHost, off)
-                Grid.SetColumn(onHost, 0)
-                Grid.SetColumn(offHost, 2)
-                g.Children.Add onHost
-                g.Children.Add offHost
-                g :> Control
-            | Momentary ->
-                let b = Ui.button (I18n.t "action.momentary") [ "hmi" ] (fun () -> ())
-                b.MinHeight <- 28.0
-                b.VerticalAlignment <- VerticalAlignment.Stretch
-                let host = makeLamp b
-                host.Margin <- Thickness(0.0, 5.0, 0.0, 0.0)
-                let lamp = Some(host, b)
-                actionLamp <- lamp
-                // 누른 즉시 점등하고, 뗀 뒤에는 다음 갱신이 실제 비트로 다시 맞춘다.
-                let release () =
-                    if held.Value then
-                        held.Value <- false
-                        light lamp None
-                        if interactive () then cb.MomentaryUp vm
-                b.AddHandler(
-                    InputElement.PointerPressedEvent,
-                    (fun _ (e: PointerPressedEventArgs) ->
-                        if interactive () && e.GetCurrentPoint(b).Properties.IsLeftButtonPressed then
-                            held.Value <- true
-                            light lamp (Some p.On)
-                            cb.MomentaryDown vm),
-                    Interactivity.RoutingStrategies.Tunnel
-                )
-                b.AddHandler(
-                    InputElement.PointerReleasedEvent,
-                    (fun _ (_: PointerReleasedEventArgs) -> release ()),
-                    Interactivity.RoutingStrategies.Tunnel
-                )
-                b.PointerExited.Add(fun _ -> release ())
-                host :> Control
-            | action ->
-                let label =
-                    match action with
-                    | Toggle -> I18n.t "action.toggle"
-                    | On -> I18n.t "action.on"
-                    | Off -> I18n.t "action.off"
-                    | _ -> I18n.t "action.toggle"
-                let b = Ui.button label [ "hmi" ] (fun () -> if interactive () then cb.Toggle vm)
-                b.MinHeight <- 28.0
-                b.VerticalAlignment <- VerticalAlignment.Stretch
-                let host = makeLamp b
-                host.Margin <- Thickness(0.0, 5.0, 0.0, 0.0)
-                actionLamp <- Some(host, b)
-                host :> Control
+        let controlArea, lamp = makeControlArea ()
+        actionLamp <- lamp
+        Grid.SetRow(controlArea, 3)
+        layout.Children.Add controlArea
 
+    | SwitchLamp ->
+        // 위는 램프(현재 상태), 아래는 조작 버튼. 한 장에서 누르고 결과를 함께 본다.
+        let holder, dot, text = makeIndicator ()
+        bigValue <- text
+        lampDot <- dot
+        lampHolder <- holder
+        Grid.SetRow(holder, 1)
+        Grid.SetRowSpan(holder, 2)
+        layout.Children.Add holder
+
+        let controlArea, lamp = makeControlArea ()
+        actionLamp <- lamp
         Grid.SetRow(controlArea, 3)
         layout.Children.Add controlArea
 
     | Lamp ->
-        let dot = Ellipse(Width = 16.0, Height = 16.0, Fill = Ui.brush p.Off)
-        let lampText = Ui.title 17.0 (I18n.t "state.off")
-        lampText.Foreground <- Ui.brush p.TextMuted
-        bigValue <- lampText
-        let row = Ui.stackH 9.0 [ dot; lampText ]
-        row.HorizontalAlignment <- HorizontalAlignment.Center
-        row.VerticalAlignment <- VerticalAlignment.Center
-        let holder =
-            Border(
-                Background = Ui.tint p.Off 0.12,
-                CornerRadius = CornerRadius 6.0,
-                Margin = Thickness(0.0, 5.0, 0.0, 0.0),
-                Child = row
-            )
+        let holder, dot, text = makeIndicator ()
+        bigValue <- text
+        lampDot <- dot
+        lampHolder <- holder
         Grid.SetRow(holder, 1)
         Grid.SetRowSpan(holder, 3)
         layout.Children.Add holder
-        // 램프는 상태 색을 원과 배경으로 보여준다.
-        root.Tag <- vm.Id
-        statePill.Child <- null
-        statePill.Tag <- box (dot, holder)
 
     | NumDisplay ->
         let value = Ui.mono 22.0 (I18n.t "state.unknown")
@@ -352,6 +355,47 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
             deviceTag.Foreground <- Ui.brush p.TextMuted
             ToolTip.SetTip(root, null)
 
+    /// 스위치가 실제로 돌아온 상태. 상태확인 디바이스가 있으면 그쪽을 먼저 본다.
+    let liveBit (bitOf: string -> bool option) =
+        if String.IsNullOrWhiteSpace vm.MonitorDevice then bitOf vm.Device
+        else
+            match bitOf vm.MonitorDevice with
+            | Some v -> Some v
+            | None -> bitOf vm.Device
+
+    /// 동작 중인 버튼을 점등한다. OFF 버튼은 OFF 일 때가 '지금 상태' 이다.
+    let lightAction (live: bool option) =
+        let isOn = live = Some true || held.Value
+        let isOff = live = Some false && not held.Value
+        match vm.Action with
+        | Off -> light actionLamp (if isOff then Some p.Off else None)
+        | _ -> light actionLamp (if isOn then Some p.On else None)
+
+    /// 램프 표시를 현재 값으로 맞춘다.
+    let showLamp (live: bool option) =
+        if not (isNull lampDot) then
+            let color, key =
+                match live with
+                | Some true -> p.On, "state.on"
+                | Some false -> p.Off, "state.off"
+                | None -> p.Off, "state.unknown"
+            lampDot.Fill <- Ui.brush color
+            lampHolder.Background <- Ui.tint color (if live = Some true then 0.18 else 0.12)
+            lampHolder.BoxShadow <- (if live = Some true then lightGlow p.On 16.0 else BoxShadows())
+            if not (isNull bigValue) then
+                bigValue.Text <- I18n.t key
+                bigValue.Foreground <- Ui.brush (if live = Some true then p.On else p.TextMuted)
+
+    /// 램프 표시를 오류(빨간색)로 덮어쓴다.
+    let showLampFault () =
+        if not (isNull lampDot) then
+            lampDot.Fill <- Ui.brush p.Error
+            lampHolder.Background <- Ui.tint p.Error 0.20
+            lampHolder.BoxShadow <- lightGlow p.Error 16.0
+            if not (isNull bigValue) then
+                bigValue.Text <- I18n.t "state.fault"
+                bigValue.Foreground <- Ui.brush p.Error
+
     /// 이 카드가 지금 오류인지. 요소별 쓰기/읽기 실패가 우선이고, 없으면 통신 전체 오류를 본다.
     let faultOf (status: RuntimeStatus) =
         match vm.Fault with
@@ -394,49 +438,15 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
                     monitorText.Text <- vm.MonitorDevice + " : " + I18n.t "state.unknown"
                     monitorText.Foreground <- Ui.brush p.TextMuted
 
-            // 동작 중인 버튼을 점등한다. 상태확인 디바이스가 있으면 그쪽 값을 먼저 본다.
-            let live =
-                if String.IsNullOrWhiteSpace vm.MonitorDevice then bitOf vm.Device
-                else
-                    match bitOf vm.MonitorDevice with
-                    | Some v -> Some v
-                    | None -> bitOf vm.Device
-            let isOn = live = Some true || held.Value
-            let isOff = live = Some false && not held.Value
-            match vm.Action with
-            | OnOff ->
-                light onLamp (if isOn then Some p.On else None)
-                light offLamp (if isOff then Some p.Off else None)
-            | Off -> light actionLamp (if isOff then Some p.Off else None)
-            | _ -> light actionLamp (if isOn then Some p.On else None)
+            lightAction (liveBit bitOf)
 
-        | Lamp ->
-            match statePill.Tag with
-            | :? (Ellipse * Border) as pair ->
-                let dot, holder = pair
-                match bitOf vm.Device with
-                | Some true ->
-                    dot.Fill <- Ui.brush p.On
-                    holder.Background <- Ui.tint p.On 0.18
-                    holder.BoxShadow <- lightGlow p.On 16.0
-                    if not (isNull bigValue) then
-                        bigValue.Text <- I18n.t "state.on"
-                        bigValue.Foreground <- Ui.brush p.On
-                | Some false ->
-                    dot.Fill <- Ui.brush p.Off
-                    holder.Background <- Ui.tint p.Off 0.12
-                    holder.BoxShadow <- BoxShadows()
-                    if not (isNull bigValue) then
-                        bigValue.Text <- I18n.t "state.off"
-                        bigValue.Foreground <- Ui.brush p.TextMuted
-                | None ->
-                    dot.Fill <- Ui.brush p.Off
-                    holder.Background <- Ui.tint p.Off 0.12
-                    holder.BoxShadow <- BoxShadows()
-                    if not (isNull bigValue) then
-                        bigValue.Text <- I18n.t "state.unknown"
-                        bigValue.Foreground <- Ui.brush p.TextMuted
-            | _ -> ()
+        | SwitchLamp ->
+            // 램프는 실제로 돌아온 상태를, 버튼은 그 상태에 맞춰 점등한다.
+            let live = liveBit bitOf
+            showLamp live
+            lightAction live
+
+        | Lamp -> showLamp (bitOf vm.Device)
 
         | NumDisplay ->
             match wordOf vm.Device with
@@ -479,25 +489,16 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
             let fault = I18n.t "state.fault"
             match vm.Kind with
             | Text -> ()
-            | Lamp ->
-                match statePill.Tag with
-                | :? (Ellipse * Border) as pair ->
-                    let dot, holder = pair
-                    dot.Fill <- red
-                    holder.Background <- Ui.tint p.Error 0.20
-                    holder.BoxShadow <- lightGlow p.Error 16.0
-                    if not (isNull bigValue) then
-                        bigValue.Text <- fault
-                        bigValue.Foreground <- red
-                | _ -> ()
+            | Lamp -> showLampFault ()
+            | SwitchLamp ->
+                showLampFault ()
+                light actionLamp (Some p.Error)
             | Switch ->
                 stateText.Text <- vm.Device + " : ▲ " + fault
                 stateText.Foreground <- red
                 statePill.Background <- Ui.tint p.Error 0.22
                 statePill.BoxShadow <- lightGlow p.Error 14.0
                 // 조작 버튼도 빨간색으로 점등해 어느 카드가 오류인지 바로 보이게 한다.
-                light onLamp (Some p.Error)
-                light offLamp (Some p.Error)
                 light actionLamp (Some p.Error)
             | NumDisplay ->
                 if not (isNull bigValue) then

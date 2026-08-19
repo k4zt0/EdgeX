@@ -30,7 +30,8 @@ type ProjectTreeView(state: AppState) =
                 Background =
                     Ui.brush (
                         match vm.Kind with
-                        | Switch -> p.KindSwitch
+                        | Switch
+                        | SwitchLamp -> p.KindSwitch
                         | Lamp -> p.KindLamp
                         | NumInput
                         | NumDisplay -> p.KindNumeric
@@ -75,7 +76,7 @@ type ProjectTreeView(state: AppState) =
         root.Items.Add screen |> ignore
 
         let groups =
-            [ I18n.t "tree.group.switch", [ Switch ]
+            [ I18n.t "tree.group.switch", [ Switch; SwitchLamp ]
               I18n.t "tree.group.lamp", [ Lamp ]
               I18n.t "tree.group.numeric", [ NumInput; NumDisplay ]
               I18n.t "tree.group.text", [ Text ] ]

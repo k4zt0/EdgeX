@@ -85,7 +85,7 @@ type PropertyPanelView(state: AppState) =
 
     /// 종류에 따라 쓰지 않는 칸은 감춘다.
     let applyKindVisibility (vm: ElementVm) =
-        let isSwitch = vm.Kind = Switch
+        let isSwitch = ItemKind.hasAction vm.Kind
         let isBit = ItemKind.isBit vm.Kind
         let isWord = ItemKind.isWord vm.Kind
         monitorField.IsVisible <- isBit

@@ -113,7 +113,8 @@ let ``v6 윈도우판이 만든 XML 을 그대로 읽는다`` () =
         let num = project.Items.[1]
         Assert.Equal(NumInput, num.Kind)
         Assert.False num.Enabled
-        Assert.Equal(OnOff, num.Action)
+        // 없앤 'ON/OFF' 동작은 예전 파일 호환을 위해 토글로 읽는다.
+        Assert.Equal(Toggle, num.Action)
         Assert.Equal(-32768, num.Min)
         Assert.Equal("", num.MonitorDevice)
     finally
@@ -201,3 +202,48 @@ let ``요소가 도면 밖에 있으면 도면을 넓혀서 연다`` () =
     let fitted = Project.fitScreen project
     Assert.True(fitted.ScreenWidth >= 3000 + 205)
     Assert.True(fitted.ScreenHeight >= 2200 + 105)
+
+[<Fact>]
+let ``스위치_램프는 저장하고 다시 읽어도 종류가 유지된다`` () =
+    let path = tempFile ()
+    try
+        let item =
+            { Item.create SwitchLamp with
+                Name = "펌프 기동"
+                Device = "M1000"
+                MonitorDevice = "P00120" }
+        Assert.Equal("SWITCH_LAMP", item.Kind.Code)
+
+        ProjectIo.save path { Project.empty with Items = [ item ] }
+        let reloaded = ProjectIo.load path
+
+        let back = reloaded.Items.Head
+        Assert.Equal(SwitchLamp, back.Kind)
+        Assert.Equal("펌프 기동", back.Name)
+        Assert.Equal("M1000", back.Device)
+        Assert.Equal("P00120", back.MonitorDevice)
+        Assert.Equal(Toggle, back.Action)
+    finally
+        if File.Exists path then File.Delete path
+
+[<Fact>]
+let ``스위치_램프는 비트 주소를 쓰고 조작 버튼을 가진다`` () =
+    Assert.True(ItemKind.isBit SwitchLamp)
+    Assert.False(ItemKind.isWord SwitchLamp)
+    Assert.True(ItemKind.hasAction SwitchLamp)
+    Assert.True(ItemKind.hasAction Switch)
+    Assert.False(ItemKind.hasAction Lamp)
+
+    // 비트 종류이므로 M/P 가 아니면 검사에서 걸린다.
+    match Item.validate { Item.create SwitchLamp with Device = "D100" } with
+    | Error _ -> ()
+    | Ok() -> failwith "D 주소는 걸러져야 한다"
+    match Item.validate { Item.create SwitchLamp with Device = "M1000" } with
+    | Ok() -> ()
+    | Error m -> failwith m
+
+[<Fact>]
+let ``없앤 ON_OFF 동작은 토글로 읽고 목록에는 없다`` () =
+    Assert.Equal(Toggle, SwitchAction.parse "ON/OFF")
+    Assert.Equal<SwitchAction list>([ Toggle; On; Off; Momentary ], SwitchAction.all)
+    Assert.DoesNotContain("ON/OFF", SwitchAction.codes)
