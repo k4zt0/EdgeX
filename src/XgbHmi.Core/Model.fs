@@ -180,13 +180,14 @@ module Item =
                 Width = 190
                 Height = 150 }
         | MasterSwitch ->
+            // 대상 고르기 + 목록 + 조작 + 전체 종료가 한 장에 들어가야 해서 넉넉하게 잡는다.
             { empty with
                 Id = newId ()
                 Kind = MasterSwitch
                 Name = "새 통합 스위치"
                 Device = ""
-                Width = 280
-                Height = 200 }
+                Width = 320
+                Height = 380 }
         | NumInput ->
             { empty with
                 Id = newId ()

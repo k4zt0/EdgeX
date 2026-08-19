@@ -269,7 +269,13 @@ type AppState() =
     member this.AddNew(kind: ItemKind) =
         pushHistory 0L
         selection.Clear()
-        let vm = this.AddItem(Item.create kind, true)
+        // 같은 종류가 이미 화면에 있으면 그 크기를 그대로 물려받는다.
+        // (한 번 알맞게 키워 두면 다음부터 그 크기가 기본이 된다)
+        let item =
+            match elements |> Seq.filter (fun e -> e.Kind = kind) |> Seq.tryLast with
+            | Some prev -> { Item.create kind with Width = prev.Width; Height = prev.Height }
+            | None -> Item.create kind
+        let vm = this.AddItem(item, true)
         structureChanged.Trigger()
         selectionChanged.Trigger()
         vm

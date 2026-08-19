@@ -320,3 +320,10 @@ let ``Visible 항목이 없는 v6 파일은 전부 보이게 읽는다`` () =
         Assert.True (ProjectIo.load path).Items.Head.Visible
     finally
         if File.Exists path then File.Delete path
+
+[<Fact>]
+let ``통합 스위치 기본 크기는 내용이 들어갈 만큼 넉넉하다`` () =
+    let item = Item.create MasterSwitch
+    // 대상 고르기 + 목록 + 조작 버튼 + 전체 종료가 한 장에 들어가야 한다.
+    Assert.Equal(320, item.Width)
+    Assert.Equal(380, item.Height)
