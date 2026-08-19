@@ -653,49 +653,46 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
                                           | None -> false)
 
             // 조작이 돌고 있으면 그 내용을, 아니면 겨누고 있는 대상의 현재 값을 보여 준다.
-            match status.Operation with
-            | Some op ->
-                // 도는 중이거나 잘 끝났으면 초록, 제대로 안 됐으면 빨강.
-                let color = if op.Phase = OpFailed then p.Error else p.On
-                let caption =
-                    match op.Phase with
-                    | OpRunning -> sprintf "%s · %s · %s" (I18n.t "master.running") op.Name op.Action
-                    | OpOk -> sprintf "%s · %s" op.Name op.Action
-                    | OpFailed -> sprintf "%s · %s" op.Name (I18n.t "state.fault")
-                setLamp color true caption
-                light actionLamp (Some color)
-                ToolTip.SetTip(root, (if String.IsNullOrWhiteSpace op.Message then null else box op.Message))
-            | None ->
-                match target.Value with
+            // 여기서 정한 글자는 램프와 카드 이름에 함께 쓴다. (값이 바뀌면 이름도 바뀐다)
+            let caption, lampColor, glowing, buttonColor, tag =
+                match status.Operation with
+                | Some op ->
+                    // 도는 중이거나 잘 끝났으면 초록, 제대로 안 됐으면 빨강.
+                    let color = if op.Phase = OpFailed then p.Error else p.On
+                    let text =
+                        match op.Phase with
+                        | OpRunning -> sprintf "%s · %s · %s" (I18n.t "master.running") op.Name op.Action
+                        | OpOk -> sprintf "%s · %s" op.Name op.Action
+                        | OpFailed -> sprintf "%s · %s" op.Name (I18n.t "state.fault")
+                    text, color, true, Some color, op.Device
                 | None ->
-                    setLamp p.Off false (I18n.t "master.noTarget")
-                    light actionLamp None
-                | Some t ->
-                    if ItemKind.isWord t.Kind then
-                        match wordOf t.Device with
-                        | Some w ->
-                            setLamp p.KindNumeric true (sprintf "%s = %d" t.Device (int16 w))
-                            light actionLamp None
-                        | None ->
-                            setLamp p.Off false (t.Device + " " + I18n.t "state.unknown")
-                            light actionLamp None
-                    else
-                        let live =
-                            if String.IsNullOrWhiteSpace t.MonitorDevice then bitOf t.Device
-                            else
-                                match bitOf t.MonitorDevice with
-                                | Some v -> Some v
-                                | None -> bitOf t.Device
-                        match live with
-                        | Some true ->
-                            setLamp p.On true (t.Name + " · " + I18n.t "state.on")
-                            light actionLamp (Some p.On)
-                        | Some false ->
-                            setLamp p.Off false (t.Name + " · " + I18n.t "state.off")
-                            light actionLamp None
-                        | None ->
-                            setLamp p.Off false (t.Name + " · " + I18n.t "state.unknown")
-                            light actionLamp None
+                    match target.Value with
+                    | None -> I18n.t "master.noTarget", p.Off, false, None, ""
+                    | Some t ->
+                        if ItemKind.isWord t.Kind then
+                            match wordOf t.Device with
+                            | Some w -> sprintf "%s · %d" t.Name (int16 w), p.KindNumeric, true, None, t.Device
+                            | None -> t.Name + " · " + I18n.t "state.unknown", p.Off, false, None, t.Device
+                        else
+                            let live =
+                                if String.IsNullOrWhiteSpace t.MonitorDevice then bitOf t.Device
+                                else
+                                    match bitOf t.MonitorDevice with
+                                    | Some v -> Some v
+                                    | None -> bitOf t.Device
+                            match live with
+                            | Some true -> t.Name + " · " + I18n.t "state.on", p.On, true, Some p.On, t.Device
+                            | Some false -> t.Name + " · " + I18n.t "state.off", p.Off, false, None, t.Device
+                            | None -> t.Name + " · " + I18n.t "state.unknown", p.Off, false, None, t.Device
+
+            setLamp lampColor glowing caption
+            light actionLamp buttonColor
+            // 카드 제목도 지금 값으로 바꾼다. 멀리서도 무엇이 어떤 상태인지 읽히도록.
+            nameText.Text <- caption
+            deviceTag.Text <- tag
+            match status.Operation with
+            | Some op -> ToolTip.SetTip(root, (if String.IsNullOrWhiteSpace op.Message then null else box op.Message))
+            | None -> ToolTip.SetTip(root, null)
 
         | NumDisplay ->
             match wordOf vm.Device with
