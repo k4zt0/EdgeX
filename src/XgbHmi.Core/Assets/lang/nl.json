@@ -27,6 +27,7 @@
   "cmd.addNumInput": "Getalinvoer",
   "cmd.addNumDisplay": "Getalweergave",
   "cmd.addText": "Tekst",
+  "cmd.editTools": "Bewerkgereedschap",
   "cmd.addElement": "Element toevoegen",
   "cmd.addSwitchBatch": "Schakelaars in bulk toevoegen",
   "cmd.connect": "Verbinden",

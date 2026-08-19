@@ -27,6 +27,7 @@
   "cmd.addNumInput": "数值输入",
   "cmd.addNumDisplay": "数值显示",
   "cmd.addText": "文本",
+  "cmd.editTools": "编辑工具",
   "cmd.addElement": "添加元素",
   "cmd.addSwitchBatch": "批量添加开关",
   "cmd.connect": "连接",

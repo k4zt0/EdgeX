@@ -27,6 +27,7 @@
   "cmd.addNumInput": "Nhập số",
   "cmd.addNumDisplay": "Hiển thị số",
   "cmd.addText": "Văn bản",
+  "cmd.editTools": "Công cụ chỉnh sửa",
   "cmd.addElement": "Thêm phần tử",
   "cmd.addSwitchBatch": "Thêm hàng loạt nút",
   "cmd.connect": "Kết nối",

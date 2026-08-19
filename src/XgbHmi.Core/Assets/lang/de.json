@@ -27,6 +27,7 @@
   "cmd.addNumInput": "Zahleneingabe",
   "cmd.addNumDisplay": "Zahlenanzeige",
   "cmd.addText": "Text",
+  "cmd.editTools": "Bearbeitung",
   "cmd.addElement": "Element hinzufügen",
   "cmd.addSwitchBatch": "Schalter als Serie anlegen",
   "cmd.connect": "Verbinden",

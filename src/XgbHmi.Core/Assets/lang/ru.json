@@ -27,6 +27,7 @@
   "cmd.addNumInput": "Ввод числа",
   "cmd.addNumDisplay": "Индикатор числа",
   "cmd.addText": "Текст",
+  "cmd.editTools": "Инструменты правки",
   "cmd.addElement": "Добавить элемент",
   "cmd.addSwitchBatch": "Добавить кнопки пакетом",
   "cmd.connect": "Подключить",

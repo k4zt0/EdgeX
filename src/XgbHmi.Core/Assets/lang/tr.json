@@ -27,6 +27,7 @@
   "cmd.addNumInput": "Sayı girişi",
   "cmd.addNumDisplay": "Sayı göstergesi",
   "cmd.addText": "Metin",
+  "cmd.editTools": "Düzenleme araçları",
   "cmd.addElement": "Öğe ekle",
   "cmd.addSwitchBatch": "Toplu buton ekle",
   "cmd.connect": "Bağlan",

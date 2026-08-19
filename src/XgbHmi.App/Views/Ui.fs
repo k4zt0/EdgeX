@@ -190,13 +190,24 @@ let radioMenuItem (header: string) (isChecked: bool) (onClick: unit -> unit) =
 
 let separatorItem () = Separator() :> Control
 
+/// 하위 메뉴를 가진 항목
+let subMenu (header: string) (items: Control seq) =
+    let mi = MenuItem(Header = header, FontFamily = uiFont)
+    for item in items do
+        mi.Items.Add item |> ignore
+    mi
+
+/// 메뉴 안에 입력칸 같은 컨트롤을 넣는 항목. 눌러도 메뉴가 닫히지 않는다.
+let controlMenuItem (content: Control) =
+    MenuItem(Header = content, StaysOpenOnClick = true, FontFamily = uiFont)
+
 /// 눌렀을 때 목록이 펼쳐지는 툴바 버튼. (버튼 여러 개를 하나로 모을 때)
 /// 테마를 그대로 쓰려고 DropDownButton 대신 Flyout 을 단 보통 버튼으로 만든다.
-let menuButton (label: string) (tip: string) (items: (string * (unit -> unit)) list) =
+let menuButton (label: string) (tip: string) (items: Control seq) =
     let b = button (label + "  ▾") [ "tool" ] (fun () -> ())
     let flyout = MenuFlyout()
-    for header, action in items do
-        flyout.Items.Add(menuItem header action) |> ignore
+    for item in items do
+        flyout.Items.Add item |> ignore
     b.Flyout <- flyout
     if not (System.String.IsNullOrWhiteSpace tip) then ToolTip.SetTip(b, tip)
     b

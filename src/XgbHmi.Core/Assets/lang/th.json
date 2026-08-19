@@ -27,6 +27,7 @@
   "cmd.addNumInput": "ป้อนตัวเลข",
   "cmd.addNumDisplay": "แสดงตัวเลข",
   "cmd.addText": "ข้อความ",
+  "cmd.editTools": "เครื่องมือแก้ไข",
   "cmd.addElement": "เพิ่มองค์ประกอบ",
   "cmd.addSwitchBatch": "เพิ่มสวิตช์เป็นชุด",
   "cmd.connect": "เชื่อมต่อ",

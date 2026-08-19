@@ -67,7 +67,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     let mutable connectButton: Button = null
     let mutable writeToggle: ToggleButton = null
     let mutable zoomLabel: TextBlock = null
-    let mutable layoutModeToggle: ToggleButton = null
+    let mutable layoutModeItem: MenuItem = null
     let mutable layoutHintText: TextBlock = null
     let mutable layoutHintBar: Border = null
     let mutable logStatsText: TextBlock = null
@@ -155,6 +155,14 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             layoutHintText.Foreground <- Ui.brush (if on then p.Accent else p.TextMuted)
             if not (isNull layoutHintBar) then
                 layoutHintBar.Background <- (if on then Ui.tint p.Accent 0.14 else Ui.tint p.Off 0.10)
+
+    /// 배치 편집을 켜고 끈다. 툴바 메뉴와 F2 가 함께 쓴다.
+    let setLayoutMode (on: bool) =
+        layoutMode <- on
+        if not (isNull canvasView) then canvasView.LayoutMode <- on
+        if not (isNull layoutModeItem) then layoutModeItem.IsChecked <- on
+        setLayoutHint on
+        log Info ("LAYOUT MODE " + (if on then "ON" else "OFF"))
 
     // ---------- PLC 값 표시 ----------
     let refreshValues () =
@@ -786,35 +794,44 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             s.Margin <- Thickness(0.0, 2.0, 0.0, 2.0)
             s :> Control
 
-        // 종류별 추가 버튼을 늘어놓는 대신 하나로 모은다. (툴바가 길어지지 않도록)
-        let addButton =
-            Ui.menuButton
-                ("＋ " + I18n.t "cmd.addElement")
-                ""
-                (ItemKind.all |> List.map (fun kind -> I18n.kindLabel kind, (fun () -> addElement kind)))
+        // 화면 편집에 쓰는 것들은 툴바에 늘어놓지 않고 메뉴 항목으로 만든다.
+        let layoutItem =
+            MenuItem(
+                Header = I18n.t "cmd.layoutMode",
+                ToggleType = MenuItemToggleType.CheckBox,
+                IsChecked = layoutMode,
+                FontFamily = Ui.uiFont
+            )
+        // 체크 상태는 setLayoutMode 가 정해 주므로 여기서는 내 상태만 뒤집는다.
+        layoutItem.Click.Add(fun _ -> setLayoutMode (not layoutMode))
+        layoutModeItem <- layoutItem
 
-        let layoutLabel (on: bool) =
-            I18n.t "cmd.layoutMode" + " : " + (if on then I18n.t "state.on" else I18n.t "state.off")
-
-        let layoutToggle =
-            Ui.toggleButton (layoutLabel layoutMode) [] layoutMode (fun isChecked ->
-                layoutMode <- isChecked
-                if not (isNull canvasView) then canvasView.LayoutMode <- isChecked
-                setLayoutHint isChecked
-                log Info ("LAYOUT MODE " + (if isChecked then "ON" else "OFF")))
-        layoutToggle.Content <- layoutLabel layoutMode
-        layoutToggle.IsCheckedChanged.Add(fun _ ->
-            layoutToggle.Content <- layoutLabel (layoutToggle.IsChecked.HasValue && layoutToggle.IsChecked.Value))
-        layoutModeToggle <- layoutToggle
-
-        let gridToggle =
-            Ui.toggleButton (I18n.t "cmd.showGrid") [] settings.ShowGrid (fun isChecked ->
-                if not (isNull canvasView) then canvasView.ShowGrid <- isChecked
+        let gridItem =
+            MenuItem(
+                Header = I18n.t "cmd.showGrid",
+                ToggleType = MenuItemToggleType.CheckBox,
+                IsChecked = settings.ShowGrid,
+                FontFamily = Ui.uiFont
+            )
+        gridItem.Click.Add(fun _ ->
+            if not (isNull canvasView) then
+                let on = not canvasView.ShowGrid
+                canvasView.ShowGrid <- on
+                gridItem.IsChecked <- on
                 persistSettings ())
 
-        let snapToggle =
-            Ui.toggleButton (I18n.t "cmd.snap") [] settings.SnapToGrid (fun isChecked ->
-                if not (isNull canvasView) then canvasView.SnapToGrid <- isChecked
+        let snapItem =
+            MenuItem(
+                Header = I18n.t "cmd.snap",
+                ToggleType = MenuItemToggleType.CheckBox,
+                IsChecked = settings.SnapToGrid,
+                FontFamily = Ui.uiFont
+            )
+        snapItem.Click.Add(fun _ ->
+            if not (isNull canvasView) then
+                let on = not canvasView.SnapToGrid
+                canvasView.SnapToGrid <- on
+                snapItem.IsChecked <- on
                 persistSettings ())
 
         let screenWidthBox =
@@ -860,6 +877,46 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
 
         let wrap = WrapPanel(Orientation = Orientation.Horizontal, Margin = Thickness(8.0, 5.0, 8.0, 5.0), ItemSpacing = 4.0, LineSpacing = 4.0)
 
+        // 도면 크기는 입력칸이라 메뉴 안에서도 눌러 고칠 수 있게 그대로 넣는다.
+        let screenSizeRow =
+            let row = Ui.stackH 5.0 [ Ui.text (I18n.t "screen.size"); screenWidthBox; Ui.text "×"; screenHeightBox ]
+            row.VerticalAlignment <- VerticalAlignment.Center
+            row :> Control
+
+        // 화면 편집에 쓰는 버튼을 전부 이 버튼 하나에 담는다. 운전 화면 툴바는 접속과 보기만 남는다.
+        let editButton =
+            let sub (header: string) (children: Control list) = Ui.subMenu header children :> Control
+            let item (header: string) (action: unit -> unit) = Ui.menuItem header action :> Control
+            Ui.menuButton
+                (I18n.t "cmd.editTools")
+                ""
+                [ sub (I18n.t "cmd.addElement") (ItemKind.all |> List.map (fun kind -> item (I18n.kindLabel kind) (fun () -> addElement kind)))
+                  item (I18n.t "cmd.addSwitchBatch") addSwitchBatch
+                  Ui.separatorItem ()
+                  layoutItem :> Control
+                  gridItem :> Control
+                  snapItem :> Control
+                  Ui.separatorItem ()
+                  item (I18n.t "cmd.undo") undo
+                  item (I18n.t "cmd.redo") redo
+                  Ui.separatorItem ()
+                  item (I18n.t "cmd.copy") copySelection
+                  item (I18n.t "cmd.paste") pasteSelection
+                  item (I18n.t "cmd.duplicate") duplicateSelection
+                  item (I18n.t "cmd.delete") deleteSelection
+                  Ui.separatorItem ()
+                  sub
+                      (I18n.t "menu.align")
+                      [ item (I18n.t "align.auto") autoArrange
+                        item (I18n.t "align.left") (fun () -> alignSelection Left "LEFT")
+                        item (I18n.t "align.top") (fun () -> alignSelection Top "TOP")
+                        item (I18n.t "align.distH") (fun () -> distributeSelection true)
+                        item (I18n.t "align.distV") (fun () -> distributeSelection false)
+                        item (I18n.t "align.sameSize") matchSelectionSize ]
+                  Ui.controlMenuItem screenSizeRow :> Control
+                  Ui.separatorItem ()
+                  item (I18n.t "cmd.apply") (fun () -> applyToScreen true |> ignore) ]
+
         let items: Control list =
             [ group [ labelled (I18n.t "conn.ip") ipBox
                       labelled (I18n.t "conn.port") portBox
@@ -867,31 +924,9 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                       connectButton
                       writeToggle ]
               Ui.vSep ()
-              group [ addButton :> Control
-                      Ui.toolButton (I18n.t "cmd.addSwitchBatch") "" addSwitchBatch ]
+              group [ editButton :> Control ]
               Ui.vSep ()
-              group [ Ui.toolButton (I18n.t "cmd.undo") "Ctrl+Z" undo
-                      Ui.toolButton (I18n.t "cmd.redo") "Ctrl+Y" redo
-                      Ui.toolButton (I18n.t "cmd.copy") "Ctrl+C" copySelection
-                      Ui.toolButton (I18n.t "cmd.paste") "Ctrl+V" pasteSelection
-                      Ui.toolButton (I18n.t "cmd.duplicate") "" duplicateSelection
-                      Ui.toolButton (I18n.t "cmd.delete") "Delete" deleteSelection
-                      Ui.button (I18n.t "cmd.apply") [] (fun () -> applyToScreen true |> ignore) ]
-              Ui.vSep ()
-              group [ Ui.toolButton (I18n.t "align.auto") "" autoArrange
-                      Ui.toolButton (I18n.t "align.left") "" (fun () -> alignSelection Left "LEFT")
-                      Ui.toolButton (I18n.t "align.top") "" (fun () -> alignSelection Top "TOP")
-                      Ui.toolButton (I18n.t "align.distH") "" (fun () -> distributeSelection true)
-                      Ui.toolButton (I18n.t "align.distV") "" (fun () -> distributeSelection false)
-                      Ui.toolButton (I18n.t "align.sameSize") "" matchSelectionSize ]
-              Ui.vSep ()
-              group [ layoutToggle
-                      gridToggle
-                      snapToggle
-                      labelled (I18n.t "screen.size") screenWidthBox
-                      Ui.text "×"
-                      screenHeightBox
-                      Ui.toolButton (I18n.t "cmd.fitToWindow") "" (fun () ->
+              group [ Ui.toolButton (I18n.t "cmd.fitToWindow") "" (fun () ->
                           if not (isNull canvasView) then
                               canvasView.FitToWindow()
                               zoomLabel.Text <- sprintf "%d%%" (int (canvasView.Zoom * 100.0))
@@ -1277,11 +1312,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             (if connected then disconnect () else connect ())
             e.Handled <- true
         | Key.F2 ->
-            layoutMode <- not layoutMode
-            if not (isNull canvasView) then canvasView.LayoutMode <- layoutMode
-            if not (isNull layoutModeToggle) then layoutModeToggle.IsChecked <- layoutMode
-            setLayoutHint layoutMode
-            log Info ("LAYOUT MODE " + (if layoutMode then "ON" else "OFF"))
+            setLayoutMode (not layoutMode)
             e.Handled <- true
         | _ -> ())
 

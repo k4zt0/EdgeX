@@ -27,6 +27,7 @@
   "cmd.addNumInput": "Zadání čísla",
   "cmd.addNumDisplay": "Zobrazení čísla",
   "cmd.addText": "Text",
+  "cmd.editTools": "Nástroje úprav",
   "cmd.addElement": "Přidat prvek",
   "cmd.addSwitchBatch": "Hromadně přidat tlačítka",
   "cmd.connect": "Připojit",

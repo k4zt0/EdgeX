@@ -27,6 +27,7 @@
   "cmd.addNumInput": "Input angka",
   "cmd.addNumDisplay": "Tampilan angka",
   "cmd.addText": "Teks",
+  "cmd.editTools": "Alat edit",
   "cmd.addElement": "Tambah elemen",
   "cmd.addSwitchBatch": "Tambah sakelar massal",
   "cmd.connect": "Sambungkan",

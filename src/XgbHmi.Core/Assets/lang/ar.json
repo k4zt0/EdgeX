@@ -27,6 +27,7 @@
   "cmd.addNumInput": "إدخال رقمي",
   "cmd.addNumDisplay": "عرض رقمي",
   "cmd.addText": "نص",
+  "cmd.editTools": "أدوات التحرير",
   "cmd.addElement": "إضافة عنصر",
   "cmd.addSwitchBatch": "إضافة مفاتيح دفعة واحدة",
   "cmd.connect": "اتصال",
