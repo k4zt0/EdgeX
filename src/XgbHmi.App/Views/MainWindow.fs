@@ -51,8 +51,9 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     let mutable connected = false
     /// PLC 통신 전체가 오류 상태인지. 운전 화면의 모든 카드를 빨간색으로 점등하는 데 쓴다.
     let mutable commFault = false
-    /// 지금 돌고 있거나 방금 끝난 조작. 통합 스위치가 이걸 보여 준다.
-    let mutable currentOp: CardFactory.RunningOp option = None
+    /// 지금 돌고 있는 조작들 (요소 Id 기준). 통합 스위치가 한 줄씩 보여 준다.
+    /// 실패는 ElementVm.Fault 로 남으므로 여기에는 도는 것만 담는다.
+    let runningOps = Collections.Generic.Dictionary<string, CardFactory.RunningOp>()
     let mutable showProjectPanel = true
     let mutable showPropertyPanel = true
     let mutable showOutputPanel = true
@@ -173,27 +174,22 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                 { BitOf = (fun addr -> plc.TryBit addr)
                   WordOf = (fun addr -> plc.TryWord addr)
                   CommFault = commFault
-                  Operation = currentOp }
+                  Operations = List.ofSeq runningOps.Values }
 
     /// 조작을 시작했다고 알린다. (통합 스위치에 '실행 중' 으로 뜬다)
     let beginOp (vm: ElementVm) (action: string) =
-        currentOp <-
-            Some
-                { Name = (if String.IsNullOrWhiteSpace vm.Name then vm.Device else vm.Name)
-                  Device = vm.Device
-                  Action = action
-                  Phase = CardFactory.OpRunning
-                  Message = "" }
+        runningOps.[vm.Id] <-
+            { Id = vm.Id
+              Name = (if String.IsNullOrWhiteSpace vm.Name then vm.Device else vm.Name)
+              Device = vm.Device
+              Action = action
+              Phase = CardFactory.OpRunning
+              Message = "" }
         refreshValues ()
 
-    /// 조작이 끝났다고 알린다. 결과는 초록/빨강으로 남는다.
-    let endOp (ok: bool) (message: string) =
-        currentOp <-
-            currentOp
-            |> Option.map (fun op ->
-                { op with
-                    Phase = (if ok then CardFactory.OpOk else CardFactory.OpFailed)
-                    Message = message })
+    /// 조작이 끝났다고 알린다. 실패는 vm.Fault 로 남아 계속 빨갛게 보인다.
+    let endOp (vm: ElementVm) (_ok: bool) (_message: string) =
+        runningOps.Remove vm.Id |> ignore
         refreshValues ()
 
     // ---------- 프로젝트 입출력 ----------
@@ -261,7 +257,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                 let elapsed = (DateTime.Now - started).TotalMilliseconds
                 onUi (fun () ->
                     vm.Fault <- None
-                    endOp true ""
+                    endOp vm true ""
                     let rbText =
                         match readback with
                         | Some rb -> sprintf "  READBACK=%s" (onOff rb)
@@ -280,7 +276,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             | Error message ->
                 onUi (fun () ->
                     vm.Fault <- Some message
-                    endOp false message
+                    endOp vm false message
                     log Failure (sprintf "BIT WRITE ERROR %s (%s) <- %s  %.0f ms : %s" device (xgtName device) (onOff value) (DateTime.Now - started).TotalMilliseconds message)
                     Dialogs.error win (I18n.tf "msg.writeFailed" [| box device; box message |]) |> ignore))
         |> ignore
@@ -301,7 +297,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                     let elapsed = (DateTime.Now - started).TotalMilliseconds
                     onUi (fun () ->
                         vm.Fault <- None
-                        endOp true ""
+                        endOp vm true ""
                         let rbText =
                             match readback with
                             | Some rb -> sprintf "  READBACK=%s" (onOff rb)
@@ -314,13 +310,13 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                 | Error message ->
                     onUi (fun () ->
                         vm.Fault <- Some message
-                        endOp false message
+                        endOp vm false message
                         log Failure (sprintf "BIT WRITE ERROR %s (%s): %s" device (xgtName device) message)
                         Dialogs.error win (I18n.tf "msg.writeFailed" [| box device; box message |]) |> ignore)
             | Error message ->
                 onUi (fun () ->
                     vm.Fault <- Some message
-                    endOp false message
+                    endOp vm false message
                     log Failure (sprintf "TOGGLE READ ERROR %s (%s): %s" device (xgtName device) message)
                     Dialogs.error win (I18n.tf "msg.toggleReadFailed" [| box device; box message |]) |> ignore))
         |> ignore
@@ -336,7 +332,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                 let elapsed = (DateTime.Now - started).TotalMilliseconds
                 onUi (fun () ->
                     vm.Fault <- None
-                    endOp true ""
+                    endOp vm true ""
                     log Success (
                         sprintf
                             "WORD WRITE %s (%s) <- %d (0x%04X)  READBACK=%d (0x%04X, signed %d)  %.0f ms  [%s]"
@@ -344,7 +340,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             | Error message ->
                 onUi (fun () ->
                     vm.Fault <- Some message
-                    endOp false message
+                    endOp vm false message
                     log Failure (sprintf "WORD WRITE ERROR %s (%s) <- %d: %s" device (xgtName device) entered message)
                     Dialogs.error win (I18n.tf "msg.writeFailed" [| box device; box message |]) |> ignore))
         |> ignore
@@ -381,7 +377,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
 
     /// 지난 통신 오류 점등을 모두 끈다. (연결/해제할 때)
     let clearFaults () =
-        currentOp <- None
+        runningOps.Clear()
         for e in state.Elements do
             e.Fault <- None
 

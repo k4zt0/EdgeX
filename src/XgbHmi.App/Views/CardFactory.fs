@@ -20,7 +20,9 @@ type OpPhase =
 
 /// 방금 수행했거나 수행 중인 조작. 통합 스위치가 이걸 보여 준다.
 type RunningOp =
-    { Name: string
+    { /// 어느 요소의 조작인지 (ElementVm.Id)
+      Id: string
+      Name: string
       Device: string
       /// 토글 / ON / OFF / 순간 / 쓰기
       Action: string
@@ -46,8 +48,8 @@ type RuntimeStatus =
       WordOf: string -> uint16 option
       /// PLC 통신 자체가 오류면 모든 카드를 빨간색으로 점등한다.
       CommFault: bool
-      /// 화면 어디에서든 조작이 돌고 있으면 그 내용. 통합 스위치가 보여 준다.
-      Operation: RunningOp option }
+      /// 지금 돌고 있는 조작 전부. 통합 스위치가 한 줄씩 보여 준다.
+      Operations: RunningOp list }
 
 /// 캔버스에 올라간 카드 하나
 type RuntimeCard =
@@ -165,6 +167,10 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
     /// 마지막으로 받은 상태. 대상을 바꿨을 때 스캔을 기다리지 않고 바로 다시 그리려고 쥐고 있는다.
     let lastStatus = ref (None: RuntimeStatus option)
     let redraw = ref (fun () -> ())
+    /// 통합 스위치의 '실행 중' 목록. 내용이 바뀔 때만 다시 만든다.
+    let mutable runList: StackPanel = null
+    let mutable runHolder: Border = null
+    let runSignature = ref ""
     let mutable targetBox: ComboBox = null
     let mutable targetValue: NumericUpDown = null
 
@@ -317,10 +323,18 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
         Grid.SetRow(combo, 1)
         layout.Children.Add combo
 
-        let holder, dot, text = makeIndicator ()
-        bigValue <- text
-        lampDot <- dot
-        lampHolder <- holder
+        // 지금 도는 것들을 한 줄씩 쌓는다. 두 줄 이상이면 카드가 알아서 커진다.
+        let list = StackPanel(Orientation = Orientation.Vertical, Spacing = 4.0)
+        let holder =
+            Border(
+                Background = Ui.tint p.Off 0.10,
+                CornerRadius = CornerRadius 6.0,
+                Margin = Thickness(0.0, 5.0, 0.0, 0.0),
+                Padding = Thickness(8.0, 6.0),
+                Child = list
+            )
+        runList <- list
+        runHolder <- holder
         Grid.SetRow(holder, 2)
         layout.Children.Add holder
 
@@ -624,7 +638,7 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
                         | Some i -> i
                         | None -> if latest.IsEmpty then -1 else 0
 
-            // 대상에 맞춰 버튼 글자와 값 입력칸을 바꾼다.
+            // 대상에 맞춰 값 입력칸을 여닫는다.
             let operable =
                 match target.Value with
                 | Some t ->
@@ -634,65 +648,136 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
                     | NumInput -> true
                     | _ -> false
                 | None -> false
-            (match actionLamp with
-             | Some(_, b) ->
-                 b.Content <-
-                     match target.Value with
-                     | None -> I18n.t "master.noTarget"
-                     | Some t ->
-                         match t.Kind with
-                         | Switch
-                         | SwitchLamp -> I18n.actionLabel t.Action
-                         | NumInput -> I18n.t "btn.write"
-                         | _ -> I18n.t "master.displayOnly"
-                 b.IsEnabled <- operable
-             | None -> ())
             if not (isNull targetValue) then
                 targetValue.IsVisible <- (match target.Value with
                                           | Some t -> t.Kind = NumInput
                                           | None -> false)
 
-            // 조작이 돌고 있으면 그 내용을, 아니면 겨누고 있는 대상의 현재 값을 보여 준다.
-            // 여기서 정한 글자는 램프와 카드 이름에 함께 쓴다. (값이 바뀌면 이름도 바뀐다)
-            let caption, lampColor, glowing, buttonColor, tag =
-                match status.Operation with
-                | Some op ->
-                    // 도는 중이거나 잘 끝났으면 초록, 제대로 안 됐으면 빨강.
-                    let color = if op.Phase = OpFailed then p.Error else p.On
-                    let text =
-                        match op.Phase with
-                        | OpRunning -> sprintf "%s · %s · %s" (I18n.t "master.running") op.Name op.Action
-                        | OpOk -> sprintf "%s · %s" op.Name op.Action
-                        | OpFailed -> sprintf "%s · %s" op.Name (I18n.t "state.fault")
-                    text, color, true, Some color, op.Device
-                | None ->
-                    match target.Value with
-                    | None -> I18n.t "master.noTarget", p.Off, false, None, ""
-                    | Some t ->
-                        if ItemKind.isWord t.Kind then
-                            match wordOf t.Device with
-                            | Some w -> sprintf "%s · %d" t.Name (int16 w), p.KindNumeric, true, None, t.Device
-                            | None -> t.Name + " · " + I18n.t "state.unknown", p.Off, false, None, t.Device
-                        else
-                            let live =
-                                if String.IsNullOrWhiteSpace t.MonitorDevice then bitOf t.Device
-                                else
-                                    match bitOf t.MonitorDevice with
-                                    | Some v -> Some v
-                                    | None -> bitOf t.Device
-                            match live with
-                            | Some true -> t.Name + " · " + I18n.t "state.on", p.On, true, Some p.On, t.Device
-                            | Some false -> t.Name + " · " + I18n.t "state.off", p.Off, false, None, t.Device
-                            | None -> t.Name + " · " + I18n.t "state.unknown", p.Off, false, None, t.Device
+            // ---- 지금 도는 것들을 모아 한 줄씩 보여 준다 ----
+            let bitText (device: string) =
+                if String.IsNullOrWhiteSpace device then ""
+                else
+                    let v =
+                        match bitOf device with
+                        | Some true -> I18n.t "state.on"
+                        | Some false -> I18n.t "state.off"
+                        | None -> I18n.t "state.unknown"
+                    device + " : " + v
 
-            setLamp lampColor glowing caption
-            light actionLamp buttonColor
-            // 카드 제목도 지금 값으로 바꾼다. 멀리서도 무엇이 어떤 상태인지 읽히도록.
-            nameText.Text <- caption
-            deviceTag.Text <- tag
-            match status.Operation with
-            | Some op -> ToolTip.SetTip(root, (if String.IsNullOrWhiteSpace op.Message then null else box op.Message))
-            | None -> ToolTip.SetTip(root, null)
+            /// 디바이스와 상태확인 디바이스 값을 한 줄로. (WORD 요소면 값 그대로)
+            let deviceLine (t: ElementVm) =
+                if ItemKind.isWord t.Kind then
+                    match wordOf t.Device with
+                    | Some w -> sprintf "%s = %d" t.Device (int16 w)
+                    | None -> t.Device + " = " + I18n.t "state.unknown"
+                else
+                    let a = bitText t.Device
+                    let b = bitText t.MonitorDevice
+                    if b = "" then a else a + "   ·   " + b
+
+            let running =
+                status.Operations |> List.map (fun op -> op.Id, op) |> dict
+
+            let liveOf (t: ElementVm) =
+                if String.IsNullOrWhiteSpace t.MonitorDevice then bitOf t.Device
+                else
+                    match bitOf t.MonitorDevice with
+                    | Some v -> Some v
+                    | None -> bitOf t.Device
+
+            // 오류 > 실행 중 > 켜져 있음 순서로 골라 담는다.
+            let rows =
+                targetList.Value
+                |> List.choose (fun t ->
+                    match t.Fault with
+                    | Some m -> Some(p.Error, t.Name + " · " + I18n.t "state.fault", deviceLine t, m)
+                    | None ->
+                        match running.TryGetValue t.Id with
+                        | true, op ->
+                            Some(p.On, sprintf "%s · %s · %s" (I18n.t "master.running") t.Name op.Action, deviceLine t, "")
+                        | _ ->
+                            if ItemKind.isWord t.Kind then None
+                            elif liveOf t = Some true then
+                                Some(p.On, t.Name + " · " + I18n.t "state.on", deviceLine t, "")
+                            else None)
+
+            // 도는 게 하나도 없으면 겨누고 있는 대상의 현재 값을 보여 준다.
+            let rows =
+                if not rows.IsEmpty then rows
+                else
+                    match target.Value with
+                    | None -> [ p.Off, I18n.t "master.noTarget", "", "" ]
+                    | Some t ->
+                        let color =
+                            if ItemKind.isWord t.Kind then p.KindNumeric
+                            elif liveOf t = Some true then p.On
+                            else p.Off
+                        let state =
+                            if ItemKind.isWord t.Kind then
+                                match wordOf t.Device with
+                                | Some w -> string (int16 w)
+                                | None -> I18n.t "state.unknown"
+                            else
+                                match liveOf t with
+                                | Some true -> I18n.t "state.on"
+                                | Some false -> I18n.t "state.off"
+                                | None -> I18n.t "state.unknown"
+                        [ color, t.Name + " · " + state, deviceLine t, "" ]
+
+            // 내용이 그대로면 다시 만들지 않는다. (스캔마다 컨트롤을 새로 만들지 않도록)
+            let signature = rows |> List.map (fun (c, a, b, _) -> c + a + b) |> String.concat "|"
+            if signature <> runSignature.Value && not (isNull runList) then
+                runSignature.Value <- signature
+                runList.Children.Clear()
+                for color, title, detail, tip in rows do
+                    let dot = Ellipse(Width = 10.0, Height = 10.0, Fill = Ui.brush color, VerticalAlignment = VerticalAlignment.Center)
+                    let head = Ui.title 13.5 title
+                    head.Foreground <- Ui.brush color
+                    head.TextTrimming <- TextTrimming.CharacterEllipsis
+                    let line = Ui.stackH 8.0 [ dot; head ]
+                    let row =
+                        if String.IsNullOrWhiteSpace detail then line :> Control
+                        else
+                            let sub = Ui.mono 10.5 detail
+                            sub.Foreground <- Ui.brush p.TextMuted
+                            sub.Margin <- Thickness(18.0, 0.0, 0.0, 0.0)
+                            sub.TextTrimming <- TextTrimming.CharacterEllipsis
+                            Ui.stackV 1.0 [ line :> Control; sub :> Control ] :> Control
+                    if not (String.IsNullOrWhiteSpace tip) then ToolTip.SetTip(row, tip)
+                    runList.Children.Add row
+
+                // 두 줄 이상이면 카드를 그만큼 키운다. (줄어들지는 않는다)
+                let rowHeight = rows |> List.sumBy (fun (_, _, d, _) -> if String.IsNullOrWhiteSpace d then 22.0 else 36.0)
+                root.Height <- max (float vm.Height) (128.0 + rowHeight)
+
+            // 카드 제목과 버튼도 지금 값으로 바꾼다.
+            let headColor, headText, headTag =
+                match rows with
+                | (c, a, _, _) :: rest ->
+                    let more = if rest.IsEmpty then "" else sprintf "  +%d" rest.Length
+                    c, a + more, (match target.Value with Some t -> t.Device | None -> "")
+                | [] -> p.Off, vm.Name, ""
+            nameText.Text <- headText
+            deviceTag.Text <- headTag
+            light actionLamp (if headColor = p.On then Some p.On elif headColor = p.Error then Some p.Error else None)
+
+            // 버튼에는 동작 이름과 함께 디바이스 · 상태확인 디바이스 값을 같이 적는다.
+            match actionLamp with
+            | Some(_, b) ->
+                b.Content <-
+                    match target.Value with
+                    | None -> I18n.t "master.noTarget"
+                    | Some t ->
+                        let action =
+                            match t.Kind with
+                            | Switch
+                            | SwitchLamp -> I18n.actionLabel t.Action
+                            | NumInput -> I18n.t "btn.write"
+                            | _ -> I18n.t "master.displayOnly"
+                        let line = deviceLine t
+                        if String.IsNullOrWhiteSpace line then action else action + "\n" + line
+                b.IsEnabled <- operable
+            | None -> ()
 
         | NumDisplay ->
             match wordOf vm.Device with
