@@ -163,6 +163,7 @@
   "cmd.undo": "Undo",
   "cmd.redo": "Redo",
   "cmd.fitToWindow": "Fit to Window",
+  "cmd.monitorWindow": "Run screen window",
   "screen.size": "Screen size",
   "master.running": "Running",
   "master.idle": "No activity"

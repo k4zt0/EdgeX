@@ -163,6 +163,7 @@
   "cmd.undo": "復原",
   "cmd.redo": "重做",
   "cmd.fitToWindow": "符合視窗",
+  "cmd.monitorWindow": "運轉畫面視窗",
   "screen.size": "畫面大小",
   "master.running": "執行中",
   "master.idle": "無動作"

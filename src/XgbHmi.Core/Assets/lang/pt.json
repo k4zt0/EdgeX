@@ -163,6 +163,7 @@
   "cmd.undo": "Desfazer",
   "cmd.redo": "Refazer",
   "cmd.fitToWindow": "Ajustar à janela",
+  "cmd.monitorWindow": "Janela de operação",
   "screen.size": "Tamanho da tela",
   "master.running": "Em execução",
   "master.idle": "Sem atividade"

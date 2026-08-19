@@ -163,6 +163,7 @@
   "cmd.undo": "Geri al",
   "cmd.redo": "Yinele",
   "cmd.fitToWindow": "Pencereye sığdır",
+  "cmd.monitorWindow": "Çalışma ekranı penceresi",
   "screen.size": "Ekran boyutu",
   "master.running": "Çalışıyor",
   "master.idle": "Etkinlik yok"

@@ -163,6 +163,7 @@
   "cmd.undo": "Rückgängig",
   "cmd.redo": "Wiederholen",
   "cmd.fitToWindow": "An Fenster anpassen",
+  "cmd.monitorWindow": "Betriebsbild-Fenster",
   "screen.size": "Bildgröße",
   "master.running": "Läuft",
   "master.idle": "Keine Aktivität"

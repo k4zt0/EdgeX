@@ -163,6 +163,7 @@
   "cmd.undo": "Cofnij",
   "cmd.redo": "Ponów",
   "cmd.fitToWindow": "Dopasuj do okna",
+  "cmd.monitorWindow": "Okno ekranu pracy",
   "screen.size": "Rozmiar ekranu",
   "master.running": "W toku",
   "master.idle": "Brak aktywności"

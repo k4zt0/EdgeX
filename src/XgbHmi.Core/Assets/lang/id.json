@@ -163,6 +163,7 @@
   "cmd.undo": "Urungkan",
   "cmd.redo": "Ulangi",
   "cmd.fitToWindow": "Paskan ke jendela",
+  "cmd.monitorWindow": "Jendela layar operasi",
   "screen.size": "Ukuran layar",
   "master.running": "Berjalan",
   "master.idle": "Tidak ada aktivitas"

@@ -163,6 +163,7 @@
   "cmd.undo": "เลิกทำ",
   "cmd.redo": "ทำซ้ำ",
   "cmd.fitToWindow": "พอดีหน้าต่าง",
+  "cmd.monitorWindow": "หน้าต่างหน้าจอเดินเครื่อง",
   "screen.size": "ขนาดหน้าจอ",
   "master.running": "กำลังทำงาน",
   "master.idle": "ไม่มีการทำงาน"

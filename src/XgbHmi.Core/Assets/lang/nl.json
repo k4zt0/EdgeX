@@ -163,6 +163,7 @@
   "cmd.undo": "Ongedaan maken",
   "cmd.redo": "Opnieuw",
   "cmd.fitToWindow": "Aan venster aanpassen",
+  "cmd.monitorWindow": "Bedrijfsschermvenster",
   "screen.size": "Schermgrootte",
   "master.running": "Bezig",
   "master.idle": "Geen activiteit"

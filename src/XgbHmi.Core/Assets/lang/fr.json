@@ -163,6 +163,7 @@
   "cmd.undo": "Annuler",
   "cmd.redo": "Rétablir",
   "cmd.fitToWindow": "Ajuster à la fenêtre",
+  "cmd.monitorWindow": "Fenêtre d'exploitation",
   "screen.size": "Taille de l'écran",
   "master.running": "En cours",
   "master.idle": "Aucune activité"

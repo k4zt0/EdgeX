@@ -163,6 +163,7 @@
   "cmd.undo": "Zpět",
   "cmd.redo": "Znovu",
   "cmd.fitToWindow": "Přizpůsobit oknu",
+  "cmd.monitorWindow": "Okno provozní obrazovky",
   "screen.size": "Velikost obrazovky",
   "master.running": "Probíhá",
   "master.idle": "Žádná činnost"

@@ -163,6 +163,7 @@
   "cmd.undo": "Annulla",
   "cmd.redo": "Ripeti",
   "cmd.fitToWindow": "Adatta alla finestra",
+  "cmd.monitorWindow": "Finestra di esercizio",
   "screen.size": "Dimensioni schermata",
   "master.running": "In corso",
   "master.idle": "Nessuna attività"

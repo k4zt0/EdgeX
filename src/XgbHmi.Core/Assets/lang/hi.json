@@ -163,6 +163,7 @@
   "cmd.undo": "पूर्ववत करें",
   "cmd.redo": "फिर से करें",
   "cmd.fitToWindow": "विंडो में फ़िट करें",
+  "cmd.monitorWindow": "संचालन स्क्रीन विंडो",
   "screen.size": "स्क्रीन आकार",
   "master.running": "चल रहा है",
   "master.idle": "कोई गतिविधि नहीं"

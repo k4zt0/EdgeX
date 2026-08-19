@@ -163,6 +163,7 @@
   "cmd.undo": "실행 취소",
   "cmd.redo": "다시 실행",
   "cmd.fitToWindow": "창에 맞추기",
+  "cmd.monitorWindow": "운전 화면 창",
   "screen.size": "화면 크기",
   "master.running": "실행 중",
   "master.idle": "동작 없음"

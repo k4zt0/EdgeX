@@ -163,6 +163,7 @@
   "cmd.undo": "Отменить",
   "cmd.redo": "Вернуть",
   "cmd.fitToWindow": "Вписать в окно",
+  "cmd.monitorWindow": "Окно рабочего экрана",
   "screen.size": "Размер экрана",
   "master.running": "Выполняется",
   "master.idle": "Нет активности"

@@ -163,6 +163,7 @@
   "cmd.undo": "تراجع",
   "cmd.redo": "إعادة",
   "cmd.fitToWindow": "ملاءمة النافذة",
+  "cmd.monitorWindow": "نافذة شاشة التشغيل",
   "screen.size": "مقاس الشاشة",
   "master.running": "قيد التنفيذ",
   "master.idle": "لا يوجد نشاط"

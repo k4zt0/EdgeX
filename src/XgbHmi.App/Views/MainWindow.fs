@@ -42,6 +42,11 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     let logHistory = ResizeArray<LogRecord>()
     let mutable output: OutputPanelView = null
     let mutable canvasView: RunCanvasView = null
+    /// 운전 중에 따로 띄우는 모니터링 창과 그 캔버스
+    let mutable monitorWindow: Window = null
+    let mutable monitorCanvas: RunCanvasView = null
+    let mutable monitorStatus: TextBlock = null
+    let mutable canvasHost: CanvasHost option = None
     let mutable tableView: ElementTableView = null
     let mutable treeView: ProjectTreeView = null
     let mutable propertyView: PropertyPanelView = null
@@ -138,6 +143,9 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             | _ -> ()
             statusText.Text <- detail
             statusText.Foreground <- Ui.brush (if kind = Faulted then p.Error else p.TextMuted)
+            if not (isNull monitorStatus) then
+                monitorStatus.Text <- caption + "   ·   " + detail
+                monitorStatus.Foreground <- Ui.brush fg
             statusProfile.Text <-
                 if String.IsNullOrWhiteSpace plc.ProfileName then ""
                 else I18n.t "conn.profile" + ": " + plc.ProfileName
@@ -170,13 +178,23 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
         log Info ("LAYOUT MODE " + (if on then "ON" else "OFF"))
 
     // ---------- PLC 값 표시 ----------
+    /// 지금 살아 있는 운전 화면 캔버스들. (문서 탭 + 모니터링 창)
+    let canvases () =
+        [ if not (isNull canvasView) then yield canvasView
+          if not (isNull monitorCanvas) then yield monitorCanvas ]
+
+    let rebuildCanvases () =
+        for c in canvases () do
+            c.Rebuild()
+
     let refreshValues () =
-        if not (isNull canvasView) then
-            canvasView.RefreshValues
-                { BitOf = (fun addr -> plc.TryBit addr)
-                  WordOf = (fun addr -> plc.TryWord addr)
-                  CommFault = commFault
-                  Operations = List.ofSeq runningOps.Values }
+        let status: CardFactory.RuntimeStatus =
+            { BitOf = (fun addr -> plc.TryBit addr)
+              WordOf = (fun addr -> plc.TryWord addr)
+              CommFault = commFault
+              Operations = List.ofSeq runningOps.Values }
+        for c in canvases () do
+            c.RefreshValues status
 
     /// 조작을 시작했다고 알린다. (통합 스위치에 '실행 중' 으로 뜬다)
     let beginOp (vm: ElementVm) (action: string) =
@@ -194,6 +212,78 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
         runningOps.Remove vm.Id |> ignore
         refreshValues ()
 
+    // ---------- 운전 화면 모니터링 창 ----------
+    /// 운전 중에는 운전 화면을 따로 띄운다. 배치 편집은 하지 않고 보고 조작만 한다.
+    let closeMonitorWindow () =
+        if not (isNull monitorWindow) then
+            let w = monitorWindow
+            monitorWindow <- null
+            w.Close()
+
+    let openMonitorWindow () =
+        match canvasHost with
+        | None -> ()
+        | Some host ->
+            if isNull monitorWindow then
+                let p = ThemeService.current ()
+
+                let view = new RunCanvasView(state, host)
+                view.ShowGrid <- false
+                view.SnapToGrid <- false
+                // 모니터링 창에서는 요소를 옮기지 않는다. 잘못 끌어 옮기는 사고를 막는다.
+                view.LayoutMode <- false
+                view.Rebuild()
+                monitorCanvas <- view
+
+                let statusText = Ui.mono 11.5 ""
+                statusText.Foreground <- Ui.brush p.TextMuted
+                statusText.Margin <- Thickness(10.0, 0.0, 10.0, 0.0)
+                monitorStatus <- statusText
+
+                let bar =
+                    Border(
+                        Background = Ui.brush p.StatusBar,
+                        BorderBrush = Ui.brush p.Border,
+                        BorderThickness = Thickness(0.0, 1.0, 0.0, 0.0),
+                        Height = 26.0,
+                        Child = statusText
+                    )
+
+                let root = DockPanel(LastChildFill = true)
+                DockPanel.SetDock(bar, Dock.Bottom)
+                root.Children.Add bar
+                root.Children.Add view.Root
+
+                let w =
+                    Window(
+                        Title = projectLabel () + " — " + I18n.t "tab.run",
+                        Width = 1280.0,
+                        Height = 820.0,
+                        MinWidth = 480.0,
+                        MinHeight = 320.0,
+                        Background = Ui.brush p.Window,
+                        FontFamily = Ui.uiFont,
+                        WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                        Content = root
+                    )
+                w.FlowDirection <- (if I18n.isRtl () then FlowDirection.RightToLeft else FlowDirection.LeftToRight)
+                w.Closed.Add(fun _ ->
+                    (match box monitorCanvas with
+                     | :? IDisposable as d -> d.Dispose()
+                     | _ -> ())
+                    monitorCanvas <- null
+                    monitorStatus <- null
+                    monitorWindow <- null
+                    log Info "MONITOR WINDOW CLOSED")
+
+                monitorWindow <- w
+                w.Show()
+                view.FitToWindow()
+                refreshValues ()
+                // 같은 화면을 두 군데서 보지 않도록 본 창은 화면 편집으로 넘긴다.
+                if not (isNull documentTabs) then documentTabs.SelectedIndex <- 1
+                log Info "MONITOR WINDOW OPEN"
+
     // ---------- 프로젝트 입출력 ----------
     let loadProjectFrom (path: string) =
         try
@@ -202,7 +292,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             if not (isNull ipBox) then ipBox.Text <- project.PlcIp
             if not (isNull portBox) then portBox.Value <- decimal project.Port
             if not (isNull cycleBox) then cycleBox.Value <- decimal project.CycleMs
-            if not (isNull canvasView) then canvasView.Rebuild()
+            rebuildCanvases ()
             if not (isNull treeView) then treeView.Rebuild()
             updateTitle ()
             updateItemCount ()
@@ -400,6 +490,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     let disconnect () =
         plc.Disconnect()
         clearFaults ()
+        closeMonitorWindow ()
         setConnectedUi false
         writeEnabled <- false
         if not (isNull writeToggle) then
@@ -424,6 +515,8 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                     clearFaults ()
                     setConnectedUi true
                     setStatus Online (DateTime.Now.ToString "HH:mm:ss.fff")
+                    // 운전이 시작되면 운전 화면을 따로 띄운다.
+                    openMonitorWindow ()
                     refreshValues ()
                 | Error message ->
                     setConnectedUi false
@@ -438,7 +531,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             Dialogs.error win (I18n.tf "msg.invalid" [| box message |]) |> ignore
             false
         | Ok() ->
-            if not (isNull canvasView) then canvasView.Rebuild()
+            rebuildCanvases ()
             refreshValues ()
             updateItemCount ()
             if announce then Dialogs.info win (I18n.t "cmd.apply") (I18n.t "msg.applied") |> ignore
@@ -491,7 +584,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             if yes then
                 state.LoadProject(Project.createDefault (), state.ProjectPath)
                 if not (isNull ipBox) then ipBox.Text <- state.PlcIp
-                if not (isNull canvasView) then canvasView.Rebuild()
+                rebuildCanvases ()
                 if not (isNull treeView) then treeView.Rebuild()
                 state.MarkDirty()
                 updateTitle ()
@@ -505,7 +598,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             let! yes = Dialogs.confirm win (I18n.t "cmd.new") (I18n.t "msg.restoreSample")
             if yes then
                 state.LoadProject({ Project.empty with Items = [] }, "")
-                if not (isNull canvasView) then canvasView.Rebuild()
+                rebuildCanvases ()
                 if not (isNull treeView) then treeView.Rebuild()
                 updateTitle ()
                 updateItemCount ()
@@ -609,7 +702,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
 
     let undo () =
         if state.Undo() then
-            if not (isNull canvasView) then canvasView.Rebuild()
+            rebuildCanvases ()
             refreshValues ()
             updateItemCount ()
             log Info "UNDO"
@@ -617,7 +710,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
 
     let redo () =
         if state.Redo() then
-            if not (isNull canvasView) then canvasView.Rebuild()
+            rebuildCanvases ()
             refreshValues ()
             updateItemCount ()
             log Info "REDO"
@@ -770,6 +863,10 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
         viewMenu.Items.Add(
             Ui.menuItem (I18n.t "cmd.fitToWindow") (fun () ->
                 if not (isNull canvasView) then canvasView.FitToWindow()))
+        |> ignore
+        viewMenu.Items.Add(
+            Ui.checkableMenuItem (I18n.t "cmd.monitorWindow") (not (isNull monitorWindow)) (fun () ->
+                if isNull monitorWindow then openMonitorWindow () else closeMonitorWindow ()))
         |> ignore
         menu.Items.Add viewMenu |> ignore
 
@@ -1070,6 +1167,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                         log Info (sprintf "PASTE TO CANVAS %d ITEM(S)" count)
               Info = fun text -> if not (isNull statusGeometry) then statusGeometry.Text <- text }
 
+        canvasHost <- Some host
         canvasView <- new RunCanvasView(state, host)
         canvasView.ShowGrid <- settings.ShowGrid
         canvasView.SnapToGrid <- settings.SnapToGrid
@@ -1296,7 +1394,8 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             match prop with
             // 카드 구조가 바뀌는 항목: 그 카드만 다시 만든다.
             | "Kind" | "Action" | "Enabled" | "Visible" | "Name" | "Device" | "MonitorDevice" | "Min" | "Max" ->
-                canvasView.RebuildOne vm
+                for c in canvases () do
+                    c.RebuildOne vm
                 refreshValues ()
             | _ -> ())
 
@@ -1374,6 +1473,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
 
     win.Closing.Add(fun _ ->
         persistSettings ()
+        closeMonitorWindow ()
         plc.Disconnect())
 
     // ---------- 첫 로드 ----------

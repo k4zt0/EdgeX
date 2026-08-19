@@ -163,6 +163,7 @@
   "cmd.undo": "元に戻す",
   "cmd.redo": "やり直し",
   "cmd.fitToWindow": "ウィンドウに合わせる",
+  "cmd.monitorWindow": "運転画面ウィンドウ",
   "screen.size": "画面サイズ",
   "master.running": "実行中",
   "master.idle": "動作なし"
