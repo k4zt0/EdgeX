@@ -162,9 +162,13 @@
   "log.stats": "scrutations {0} · trames {1} · erreurs {2} · dernier {3} ms",
   "cmd.undo": "Annuler",
   "cmd.redo": "Rétablir",
+  "cmd.runNow": "Exécuter",
+  "cmd.revertRun": "Annuler",
+  "cmd.revertRunTip": "Rétablir la valeur d'avant la dernière exécution",
   "cmd.fitToWindow": "Ajuster à la fenêtre",
   "cmd.monitorWindow": "Fenêtre d'exploitation",
   "screen.size": "Taille de l'écran",
   "master.running": "En cours",
-  "master.idle": "Aucune activité"
+  "master.idle": "Aucune activité",
+  "msg.nothingToRevert": "Cet élément n'a pas encore été exécuté depuis le tableau."
 }

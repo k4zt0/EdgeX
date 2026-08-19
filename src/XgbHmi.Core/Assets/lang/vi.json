@@ -162,9 +162,13 @@
   "log.stats": "quét {0} · khung {1} · lỗi {2} · gần nhất {3} ms",
   "cmd.undo": "Hoàn tác",
   "cmd.redo": "Làm lại",
+  "cmd.runNow": "Chạy",
+  "cmd.revertRun": "Hoàn tác",
+  "cmd.revertRunTip": "Ghi lại giá trị trước lần chạy gần nhất",
   "cmd.fitToWindow": "Vừa cửa sổ",
   "cmd.monitorWindow": "Cửa sổ màn hình vận hành",
   "screen.size": "Kích thước màn hình",
   "master.running": "Đang chạy",
-  "master.idle": "Không có hoạt động"
+  "master.idle": "Không có hoạt động",
+  "msg.nothingToRevert": "Phần tử này chưa được chạy từ bảng."
 }

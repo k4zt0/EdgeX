@@ -162,9 +162,13 @@
   "log.stats": "ciclos {0} · tramas {1} · errores {2} · último {3} ms",
   "cmd.undo": "Deshacer",
   "cmd.redo": "Rehacer",
+  "cmd.runNow": "Ejecutar",
+  "cmd.revertRun": "Deshacer",
+  "cmd.revertRunTip": "Restaura el valor anterior a la última ejecución",
   "cmd.fitToWindow": "Ajustar a la ventana",
   "cmd.monitorWindow": "Ventana de operación",
   "screen.size": "Tamaño de pantalla",
   "master.running": "En curso",
-  "master.idle": "Sin actividad"
+  "master.idle": "Sin actividad",
+  "msg.nothingToRevert": "Este elemento aún no se ha ejecutado desde la tabla."
 }

@@ -162,9 +162,13 @@
   "log.stats": "สแกน {0} · เฟรม {1} · ผิดพลาด {2} · ล่าสุด {3} ms",
   "cmd.undo": "เลิกทำ",
   "cmd.redo": "ทำซ้ำ",
+  "cmd.runNow": "เรียกใช้",
+  "cmd.revertRun": "เลิกทำ",
+  "cmd.revertRunTip": "เขียนกลับค่าก่อนการเรียกใช้ครั้งล่าสุด",
   "cmd.fitToWindow": "พอดีหน้าต่าง",
   "cmd.monitorWindow": "หน้าต่างหน้าจอเดินเครื่อง",
   "screen.size": "ขนาดหน้าจอ",
   "master.running": "กำลังทำงาน",
-  "master.idle": "ไม่มีการทำงาน"
+  "master.idle": "ไม่มีการทำงาน",
+  "msg.nothingToRevert": "องค์ประกอบนี้ยังไม่เคยถูกเรียกใช้จากตาราง"
 }

@@ -162,9 +162,13 @@
   "log.stats": "опросов {0} · кадров {1} · ошибок {2} · последний {3} мс",
   "cmd.undo": "Отменить",
   "cmd.redo": "Вернуть",
+  "cmd.runNow": "Выполнить",
+  "cmd.revertRun": "Отменить",
+  "cmd.revertRunTip": "Вернуть значение до последнего выполнения",
   "cmd.fitToWindow": "Вписать в окно",
   "cmd.monitorWindow": "Окно рабочего экрана",
   "screen.size": "Размер экрана",
   "master.running": "Выполняется",
-  "master.idle": "Нет активности"
+  "master.idle": "Нет активности",
+  "msg.nothingToRevert": "Этот элемент ещё не выполнялся из таблицы."
 }

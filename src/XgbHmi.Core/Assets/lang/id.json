@@ -162,9 +162,13 @@
   "log.stats": "pindai {0} · bingkai {1} · galat {2} · terakhir {3} ms",
   "cmd.undo": "Urungkan",
   "cmd.redo": "Ulangi",
+  "cmd.runNow": "Jalankan",
+  "cmd.revertRun": "Batalkan",
+  "cmd.revertRunTip": "Menulis kembali nilai sebelum eksekusi terakhir",
   "cmd.fitToWindow": "Paskan ke jendela",
   "cmd.monitorWindow": "Jendela layar operasi",
   "screen.size": "Ukuran layar",
   "master.running": "Berjalan",
-  "master.idle": "Tidak ada aktivitas"
+  "master.idle": "Tidak ada aktivitas",
+  "msg.nothingToRevert": "Elemen ini belum pernah dijalankan dari tabel."
 }

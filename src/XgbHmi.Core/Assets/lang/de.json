@@ -162,9 +162,13 @@
   "log.stats": "Zyklen {0} · Telegramme {1} · Fehler {2} · zuletzt {3} ms",
   "cmd.undo": "Rückgängig",
   "cmd.redo": "Wiederholen",
+  "cmd.runNow": "Ausführen",
+  "cmd.revertRun": "Rückgängig",
+  "cmd.revertRunTip": "Wert von vor der letzten Ausführung zurückschreiben",
   "cmd.fitToWindow": "An Fenster anpassen",
   "cmd.monitorWindow": "Betriebsbild-Fenster",
   "screen.size": "Bildgröße",
   "master.running": "Läuft",
-  "master.idle": "Keine Aktivität"
+  "master.idle": "Keine Aktivität",
+  "msg.nothingToRevert": "Dieses Element wurde noch nicht aus der Tabelle ausgeführt."
 }

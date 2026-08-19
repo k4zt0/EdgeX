@@ -12,8 +12,15 @@ open XgbHmi.Core
 open XgbHmi.App.Services
 open XgbHmi.App.ViewModels
 
+/// 표에서 바로 눌러 보는 조작
+type TableCommands =
+    { /// 그 요소의 스위치 동작을 실제로 수행한다.
+      Run: ElementVm -> unit
+      /// 직전 실행 전의 값으로 되돌린다.
+      Revert: ElementVm -> unit }
+
 [<AllowNullLiteral>]
-type ElementTableView(state: AppState) =
+type ElementTableView(state: AppState, commands: TableCommands) =
 
     let grid =
         DataGrid(
@@ -60,6 +67,37 @@ type ElementTableView(state: AppState) =
     let checkColumn (header: string) (path: string) (width: float) =
         DataGridCheckBoxColumn(Header = header, Binding = twoWay path, Width = DataGridLength width)
 
+    /// 행마다 '실행 / 실행 취소' 버튼을 둔다.
+    /// 행이 재사용되므로 누른 시점의 DataContext 를 보고 대상을 정한다.
+    let commandColumn (header: string) (width: float) =
+        let make (label: string) (tip: string) (action: ElementVm -> unit) =
+            let b = Ui.button label [ "hmi" ] (fun () -> ())
+            b.MinHeight <- 22.0
+            b.FontSize <- 11.0
+            b.Padding <- Thickness(6.0, 0.0)
+            ToolTip.SetTip(b, tip)
+            b.Click.Add(fun _ ->
+                match b.DataContext with
+                | :? ElementVm as vm -> action vm
+                | _ -> ())
+            b
+
+        let template =
+            FuncDataTemplate<ElementVm>(
+                (fun vm _ ->
+                    let runButton = make (I18n.t "cmd.runNow") (I18n.t "cmd.runNow") commands.Run
+                    let revertButton = make (I18n.t "cmd.revertRun") (I18n.t "cmd.revertRunTip") commands.Revert
+                    // 조작 버튼이 있는 종류에서만 누를 수 있다.
+                    let usable = not (isNull (box vm)) && ItemKind.hasAction vm.Kind
+                    runButton.IsEnabled <- usable
+                    revertButton.IsEnabled <- usable
+                    let row = Ui.stackH 3.0 [ runButton; revertButton ]
+                    row.Margin <- Thickness(2.0, 1.0)
+                    row :> Control),
+                true
+            )
+        DataGridTemplateColumn(Header = header, CellTemplate = template, Width = DataGridLength width)
+
     do
         grid.Columns.Add(checkColumn (I18n.t "prop.enabled") "Enabled" 56.0)
         grid.Columns.Add(checkColumn (I18n.t "prop.visible") "Visible" 86.0)
@@ -74,6 +112,7 @@ type ElementTableView(state: AppState) =
         grid.Columns.Add(textColumn (I18n.t "prop.y") "Y" 62.0)
         grid.Columns.Add(textColumn (I18n.t "prop.width") "Width" 70.0)
         grid.Columns.Add(textColumn (I18n.t "prop.height") "Height" 70.0)
+        grid.Columns.Add(commandColumn (I18n.t "cmd.runNow") 128.0)
 
         grid.SelectionChanged.Add(fun _ ->
             if not syncing then

@@ -162,9 +162,13 @@
   "log.stats": "cykle {0} · ramki {1} · błędy {2} · ostatni {3} ms",
   "cmd.undo": "Cofnij",
   "cmd.redo": "Ponów",
+  "cmd.runNow": "Wykonaj",
+  "cmd.revertRun": "Cofnij",
+  "cmd.revertRunTip": "Przywraca wartość sprzed ostatniego wykonania",
   "cmd.fitToWindow": "Dopasuj do okna",
   "cmd.monitorWindow": "Okno ekranu pracy",
   "screen.size": "Rozmiar ekranu",
   "master.running": "W toku",
-  "master.idle": "Brak aktywności"
+  "master.idle": "Brak aktywności",
+  "msg.nothingToRevert": "Ten element nie był jeszcze wykonany z tabeli."
 }

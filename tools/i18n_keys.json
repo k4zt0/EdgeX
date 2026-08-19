@@ -162,9 +162,13 @@
   "log.stats": "scans {0} · frames {1} · errors {2} · last {3} ms",
   "cmd.undo": "Undo",
   "cmd.redo": "Redo",
+  "cmd.runNow": "Run",
+  "cmd.revertRun": "Undo run",
+  "cmd.revertRunTip": "Write back the value from before the last run",
   "cmd.fitToWindow": "Fit to Window",
   "cmd.monitorWindow": "Run screen window",
   "screen.size": "Screen size",
   "master.running": "Running",
-  "master.idle": "No activity"
+  "master.idle": "No activity",
+  "msg.nothingToRevert": "This element has not been run from the table yet."
 }

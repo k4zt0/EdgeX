@@ -162,9 +162,13 @@
   "log.stats": "scansioni {0} · telegrammi {1} · errori {2} · ultimo {3} ms",
   "cmd.undo": "Annulla",
   "cmd.redo": "Ripeti",
+  "cmd.runNow": "Esegui",
+  "cmd.revertRun": "Annulla",
+  "cmd.revertRunTip": "Ripristina il valore precedente all'ultima esecuzione",
   "cmd.fitToWindow": "Adatta alla finestra",
   "cmd.monitorWindow": "Finestra di esercizio",
   "screen.size": "Dimensioni schermata",
   "master.running": "In corso",
-  "master.idle": "Nessuna attività"
+  "master.idle": "Nessuna attività",
+  "msg.nothingToRevert": "Questo elemento non è ancora stato eseguito dalla tabella."
 }

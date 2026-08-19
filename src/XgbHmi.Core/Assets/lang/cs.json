@@ -162,9 +162,13 @@
   "log.stats": "cykly {0} · rámce {1} · chyby {2} · poslední {3} ms",
   "cmd.undo": "Zpět",
   "cmd.redo": "Znovu",
+  "cmd.runNow": "Spustit",
+  "cmd.revertRun": "Vrátit",
+  "cmd.revertRunTip": "Vrátí hodnotu před posledním spuštěním",
   "cmd.fitToWindow": "Přizpůsobit oknu",
   "cmd.monitorWindow": "Okno provozní obrazovky",
   "screen.size": "Velikost obrazovky",
   "master.running": "Probíhá",
-  "master.idle": "Žádná činnost"
+  "master.idle": "Žádná činnost",
+  "msg.nothingToRevert": "Tento prvek zatím nebyl z tabulky spuštěn."
 }

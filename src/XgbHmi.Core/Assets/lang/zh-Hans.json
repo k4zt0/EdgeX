@@ -162,9 +162,13 @@
   "log.stats": "扫描 {0} · 帧 {1} · 错误 {2} · 最近 {3} ms",
   "cmd.undo": "撤销",
   "cmd.redo": "重做",
+  "cmd.runNow": "执行",
+  "cmd.revertRun": "撤销执行",
+  "cmd.revertRunTip": "写回上次执行前的值",
   "cmd.fitToWindow": "适应窗口",
   "cmd.monitorWindow": "运行画面窗口",
   "screen.size": "画面大小",
   "master.running": "执行中",
-  "master.idle": "无动作"
+  "master.idle": "无动作",
+  "msg.nothingToRevert": "该元素尚未从表格执行过。"
 }

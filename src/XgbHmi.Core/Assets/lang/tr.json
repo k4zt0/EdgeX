@@ -162,9 +162,13 @@
   "log.stats": "tarama {0} · çerçeve {1} · hata {2} · son {3} ms",
   "cmd.undo": "Geri al",
   "cmd.redo": "Yinele",
+  "cmd.runNow": "Çalıştır",
+  "cmd.revertRun": "Geri al",
+  "cmd.revertRunTip": "Son çalıştırmadan önceki değeri geri yazar",
   "cmd.fitToWindow": "Pencereye sığdır",
   "cmd.monitorWindow": "Çalışma ekranı penceresi",
   "screen.size": "Ekran boyutu",
   "master.running": "Çalışıyor",
-  "master.idle": "Etkinlik yok"
+  "master.idle": "Etkinlik yok",
+  "msg.nothingToRevert": "Bu öğe tablodan henüz çalıştırılmadı."
 }

@@ -276,9 +276,13 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                     monitorWindow <- null
                     log Info "MONITOR WINDOW CLOSED")
 
+                // 창 크기가 바뀌면 보이는 요소가 다시 꽉 차게 맞춘다.
+                w.SizeChanged.Add(fun _ -> if not (isNull monitorCanvas) then monitorCanvas.FitToContent())
+
                 monitorWindow <- w
                 w.Show()
-                view.FitToWindow()
+                // 도면 전체가 아니라 '보이는 요소'에 맞춰 키운다. 멀리서도 읽히도록.
+                view.FitToContent()
                 refreshValues ()
                 // 같은 화면을 두 군데서 보지 않도록 본 창은 화면 편집으로 넘긴다.
                 if not (isNull documentTabs) then documentTabs.SelectedIndex <- 1
@@ -450,6 +454,38 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             log Warn (sprintf "KILL SWITCH — 비트 %d개를 OFF 로 씁니다" victims.Length)
             for vm in victims do
                 writeBit vm false
+
+    /// 표에서 '실행' 하기 직전의 값. '실행 취소' 가 이 값으로 되돌린다.
+    let beforeRun = Collections.Generic.Dictionary<string, bool>()
+
+    /// 표에서 그 요소의 스위치 동작을 실제로 수행한다.
+    let runFromTable (vm: ElementVm) =
+        if ItemKind.hasAction vm.Kind && ensureCanWrite () then
+            match plc.TryBit vm.Device with
+            | Some v -> beforeRun.[vm.Id] <- v
+            | None -> beforeRun.Remove vm.Id |> ignore
+            match vm.Action with
+            | Toggle -> toggleBit vm
+            | On -> writeBit vm true
+            | Off -> writeBit vm false
+            | Momentary ->
+                // 표에서는 누르고 있을 수 없으니 짧게 한 번 눌렀다 뗀 것처럼 보낸다.
+                writeBit vm true
+                Task.Run(fun () ->
+                    Threading.Thread.Sleep 300
+                    onUi (fun () -> if canWriteSilently () then writeBit vm false))
+                |> ignore
+
+    /// 직전 실행 전의 값으로 되돌린다.
+    let revertFromTable (vm: ElementVm) =
+        if ItemKind.hasAction vm.Kind then
+            match beforeRun.TryGetValue vm.Id with
+            | true, v ->
+                if ensureCanWrite () then
+                    log Info (sprintf "REVERT %s <- %s [%s]" vm.Device (onOff v) vm.Name)
+                    writeBit vm v
+            | _ ->
+                Dialogs.info win (I18n.t "cmd.revertRun") (I18n.t "msg.nothingToRevert") |> ignore
 
     let cardCallbacks: CardFactory.CardCallbacks =
         { Toggle = fun vm -> if ensureCanWrite () then toggleBit vm
@@ -1177,7 +1213,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             if not (isNull zoomLabel) then zoomLabel.Text <- sprintf "%d%%" (int (z * 100.0)))
         canvasView.Rebuild()
 
-        tableView <- new ElementTableView(state)
+        tableView <- new ElementTableView(state, { Run = runFromTable; Revert = revertFromTable })
         let tableMenu = ContextMenu()
         tableMenu.Items.Add(Ui.menuItem (I18n.t "cmd.copy") copySelection) |> ignore
         tableMenu.Items.Add(Ui.menuItem (I18n.t "cmd.paste") pasteSelection) |> ignore

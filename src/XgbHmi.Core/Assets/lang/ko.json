@@ -162,9 +162,13 @@
   "log.stats": "스캔 {0} · 프레임 {1} · 오류 {2} · 최근 {3} ms",
   "cmd.undo": "실행 취소",
   "cmd.redo": "다시 실행",
+  "cmd.runNow": "실행",
+  "cmd.revertRun": "실행 취소",
+  "cmd.revertRunTip": "직전 실행 전의 값으로 되돌립니다",
   "cmd.fitToWindow": "창에 맞추기",
   "cmd.monitorWindow": "운전 화면 창",
   "screen.size": "화면 크기",
   "master.running": "실행 중",
-  "master.idle": "동작 없음"
+  "master.idle": "동작 없음",
+  "msg.nothingToRevert": "이 요소는 아직 표에서 실행한 적이 없습니다."
 }

@@ -162,9 +162,13 @@
   "log.stats": "स्कैन {0} · फ़्रेम {1} · त्रुटियाँ {2} · अंतिम {3} ms",
   "cmd.undo": "पूर्ववत करें",
   "cmd.redo": "फिर से करें",
+  "cmd.runNow": "चलाएँ",
+  "cmd.revertRun": "पूर्ववत करें",
+  "cmd.revertRunTip": "पिछले रन से पहले का मान वापस लिखता है",
   "cmd.fitToWindow": "विंडो में फ़िट करें",
   "cmd.monitorWindow": "संचालन स्क्रीन विंडो",
   "screen.size": "स्क्रीन आकार",
   "master.running": "चल रहा है",
-  "master.idle": "कोई गतिविधि नहीं"
+  "master.idle": "कोई गतिविधि नहीं",
+  "msg.nothingToRevert": "यह तत्व अभी तक तालिका से नहीं चलाया गया है।"
 }

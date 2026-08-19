@@ -551,6 +551,27 @@ type RunCanvasView(state: AppState, host: CanvasHost) =
             this.Zoom <- max 0.4 (min 1.0 fit)
             scroller.Offset <- Vector(0.0, 0.0)
 
+    /// 보이는 요소들이 창을 꽉 채우도록 배율을 맞춘다. 요소가 몇 개 없으면 크게 확대한다.
+    /// (운전 화면 모니터링 창처럼 멀리서 보는 화면용. 도면 전체가 아니라 실제 내용에 맞춘다)
+    member this.FitToContent() =
+        let shown = state.Elements |> Seq.filter (fun e -> e.Enabled && e.Visible) |> List.ofSeq
+        match shown with
+        | [] -> this.FitToWindow()
+        | _ ->
+            let left = shown |> List.map (fun e -> e.X) |> List.min
+            let top = shown |> List.map (fun e -> e.Y) |> List.min
+            let right = shown |> List.map (fun e -> e.X + e.Width) |> List.max
+            let bottom = shown |> List.map (fun e -> e.Y + e.Height) |> List.max
+            let w = float (right - left) + 32.0
+            let h = float (bottom - top) + 32.0
+            let viewport = scroller.Viewport
+            if viewport.Width > 50.0 && viewport.Height > 50.0 && w > 0.0 && h > 0.0 then
+                let fit = min (viewport.Width / w) (viewport.Height / h)
+                this.Zoom <- max 0.4 (min 3.0 fit)
+                // 내용 왼쪽 위가 보이도록 스크롤을 옮긴다.
+                let z = this.Zoom
+                scroller.Offset <- Vector(max 0.0 (float left * z - 16.0), max 0.0 (float top * z - 16.0))
+
     /// 도면 크기를 바꾼다.
     member _.SetScreenSize(width: int, height: int) =
         screenWidth <- float width

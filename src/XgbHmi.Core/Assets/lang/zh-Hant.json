@@ -162,9 +162,13 @@
   "log.stats": "掃描 {0} · 封包 {1} · 錯誤 {2} · 最近 {3} ms",
   "cmd.undo": "復原",
   "cmd.redo": "重做",
+  "cmd.runNow": "執行",
+  "cmd.revertRun": "復原執行",
+  "cmd.revertRunTip": "寫回上次執行前的值",
   "cmd.fitToWindow": "符合視窗",
   "cmd.monitorWindow": "運轉畫面視窗",
   "screen.size": "畫面大小",
   "master.running": "執行中",
-  "master.idle": "無動作"
+  "master.idle": "無動作",
+  "msg.nothingToRevert": "此元件尚未從表格執行過。"
 }

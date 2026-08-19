@@ -162,9 +162,13 @@
   "log.stats": "scans {0} · telegrammen {1} · fouten {2} · laatste {3} ms",
   "cmd.undo": "Ongedaan maken",
   "cmd.redo": "Opnieuw",
+  "cmd.runNow": "Uitvoeren",
+  "cmd.revertRun": "Ongedaan maken",
+  "cmd.revertRunTip": "Zet de waarde van vóór de laatste uitvoering terug",
   "cmd.fitToWindow": "Aan venster aanpassen",
   "cmd.monitorWindow": "Bedrijfsschermvenster",
   "screen.size": "Schermgrootte",
   "master.running": "Bezig",
-  "master.idle": "Geen activiteit"
+  "master.idle": "Geen activiteit",
+  "msg.nothingToRevert": "Dit element is nog niet vanuit de tabel uitgevoerd."
 }

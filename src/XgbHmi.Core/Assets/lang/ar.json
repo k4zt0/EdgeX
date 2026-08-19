@@ -162,9 +162,13 @@
   "log.stats": "مسح {0} · إطارات {1} · أخطاء {2} · الأخير {3} م.ث",
   "cmd.undo": "تراجع",
   "cmd.redo": "إعادة",
+  "cmd.runNow": "تنفيذ",
+  "cmd.revertRun": "تراجع",
+  "cmd.revertRunTip": "يعيد كتابة القيمة قبل آخر تنفيذ",
   "cmd.fitToWindow": "ملاءمة النافذة",
   "cmd.monitorWindow": "نافذة شاشة التشغيل",
   "screen.size": "مقاس الشاشة",
   "master.running": "قيد التنفيذ",
-  "master.idle": "لا يوجد نشاط"
+  "master.idle": "لا يوجد نشاط",
+  "msg.nothingToRevert": "لم يتم تنفيذ هذا العنصر من الجدول بعد."
 }

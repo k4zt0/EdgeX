@@ -162,9 +162,13 @@
   "log.stats": "varreduras {0} · quadros {1} · erros {2} · último {3} ms",
   "cmd.undo": "Desfazer",
   "cmd.redo": "Refazer",
+  "cmd.runNow": "Executar",
+  "cmd.revertRun": "Desfazer",
+  "cmd.revertRunTip": "Restaura o valor anterior à última execução",
   "cmd.fitToWindow": "Ajustar à janela",
   "cmd.monitorWindow": "Janela de operação",
   "screen.size": "Tamanho da tela",
   "master.running": "Em execução",
-  "master.idle": "Sem atividade"
+  "master.idle": "Sem atividade",
+  "msg.nothingToRevert": "Este elemento ainda não foi executado a partir da tabela."
 }
