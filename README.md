@@ -237,7 +237,7 @@ src/
     Views/            메인 창, 캔버스, 표, 트리, 속성, 출력, 대화상자
 tests/XgbHmi.Tests/   가짜 XGT 서버로 프레임까지 검증하는 테스트 49개
 tools/                번역 파일 생성기, 스크린샷 생성 도구
-legacy/               기존 Windows 전용 C#/WinForms v6 원본 (참고용 보관)
+legacy/               기존 Windows 전용 C#/WinForms v6 소스와 이력 문서 (참고용 보관)
 ```
 
 ### 빌드와 테스트
