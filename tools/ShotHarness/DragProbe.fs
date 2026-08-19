@@ -72,3 +72,65 @@ let run (window: Window) =
 
     let after = (cardBorders window).Head
     printfn "드래그 후: %s" (describe after)
+
+/// 계기(다이얼)를 눌러 값이 바뀌는지 확인한다.
+/// '부품 편집' 을 끈 뒤 다이얼 위를 눌러 보고, 표시 숫자가 달라지는지 본다.
+let probeGauge (window: Window) (gaugeId: string) =
+    Dispatcher.UIThread.RunJobs()
+
+    // 문서 탭 중 마지막(HMI)을 고른다.
+    descendants window
+    |> Seq.tryPick (fun v ->
+        match v with
+        | :? TabControl as t when t.ItemCount >= 3 -> Some t
+        | _ -> None)
+    |> Option.iter (fun tabs -> tabs.SelectedIndex <- tabs.ItemCount - 1)
+    Dispatcher.UIThread.RunJobs()
+
+    // '부품 편집' 토글을 끈다. 켜져 있으면 누르기가 배치 편집으로 먹힌다.
+    let editToggle =
+        toggleButtons window
+        |> List.tryFind (fun t ->
+            match t.Content with
+            | :? string as s -> s = XgbHmi.Core.I18n.t "hmi.edit"
+            | _ -> false)
+    match editToggle with
+    | Some t ->
+        printfn "부품 편집 (누르기 전) = %A" t.IsChecked
+        t.IsChecked <- System.Nullable false
+        Dispatcher.UIThread.RunJobs()
+        printfn "부품 편집 (끈 뒤)     = %A" t.IsChecked
+    | None -> printfn "!! '부품 편집' 토글을 찾지 못했다"
+
+    let gauge =
+        descendants window
+        |> Seq.tryPick (fun v ->
+            match v with
+            | :? Border as b when (b.Tag :? string) && (b.Tag :?> string) = gaugeId -> Some b
+            | _ -> None)
+
+    match gauge with
+    | None -> printfn "!! 계기 부품을 화면에서 찾지 못했다 (id=%s)" gaugeId
+    | Some g ->
+        let textOf () =
+            descendants g
+            |> Seq.choose (fun v ->
+                match v with
+                | :? TextBlock as t when not (System.String.IsNullOrWhiteSpace t.Text) -> Some t.Text
+                | _ -> None)
+            |> List.ofSeq
+        printfn "계기 크기 = %.0f x %.0f" g.Bounds.Width g.Bounds.Height
+        printfn "누르기 전 표시 = %A" (textOf ())
+
+        // 다이얼 오른쪽 위(값이 큰 쪽)를 누른다.
+        let local = Point(g.Bounds.Width * 0.85, g.Bounds.Height * 0.35)
+        match g.TranslatePoint(local, window) with
+        | v when v.HasValue ->
+            printfn "누를 위치(창 좌표) = %.0f, %.0f" v.Value.X v.Value.Y
+            window.MouseDown(v.Value, MouseButton.Left)
+            Dispatcher.UIThread.RunJobs()
+            printfn "누른 직후 표시   = %A" (textOf ())
+            window.MouseUp(v.Value, MouseButton.Left)
+            Dispatcher.UIThread.RunJobs()
+            printfn "뗀 뒤 표시       = %A" (textOf ())
+        | _ -> printfn "!! 계기 좌표를 창 좌표로 바꾸지 못했다"

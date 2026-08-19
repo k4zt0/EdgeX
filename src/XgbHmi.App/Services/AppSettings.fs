@@ -29,6 +29,11 @@ module AppSettings =
           WindowWidth = 1500.0
           WindowHeight = 950.0 }
 
+    /// 설정을 파일에 쓰지 않게 막는다. 스크린샷/테스트 도구가 사용자 설정을 덮어쓰지 않도록 켠다.
+    let mutable private readOnly = false
+
+    let setReadOnly (value: bool) = readOnly <- value
+
     let private path () =
         let dir = XgbHmi.Core.ProjectIo.userDataDirectory ()
         Path.Combine(dir, "settings.json")
@@ -51,6 +56,7 @@ module AppSettings =
         with _ -> defaults
 
     let save (s: AppSettings) =
+        if readOnly then () else
         try
             let p = path ()
             Directory.CreateDirectory(Path.GetDirectoryName p) |> ignore

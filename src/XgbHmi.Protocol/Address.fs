@@ -41,6 +41,21 @@ module Address =
         | true, word -> { Area = area; Word = word; Bit = bit }
         | _ -> raise (ArgumentException("P BIT 주소의 WORD 부분이 잘못되었습니다: " + address))
 
+    /// WORD/BIT 위치를 XG5000 표기로 되돌린다. (parseBit 의 반대)
+    ///   'P', 12, 0 -> "P00120"   /   'M', 100, 8 -> "M01008"
+    /// 램프 배열처럼 연속한 비트를 훑을 때 쓴다.
+    let formatBit (area: char) (word: int) (bit: int) =
+        if bit < 0 || bit > 15 then
+            raise (ArgumentOutOfRangeException("bit", "BIT 위치는 0~15 입니다."))
+        sprintf "%c%04d%X" (Char.ToUpperInvariant area) word bit
+
+    /// 같은 영역에서 offset 만큼 뒤의 비트 주소. WORD 경계를 넘으면 다음 WORD 로 넘어간다.
+    let offsetBit (address: string) (offset: int) =
+        let b = parseBit address
+        let total = b.Word * 16 + b.Bit + offset
+        if total < 0 then raise (ArgumentOutOfRangeException("offset", "비트 주소가 0 아래로 내려갑니다."))
+        formatBit b.Area (total / 16) (total % 16)
+
     /// "%MX1608" 형태의 XGT 직접변수 이름
     let toXgtBit (address: string) =
         let b = parseBit address

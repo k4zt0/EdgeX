@@ -39,3 +39,23 @@ let ``D 주소만 WORD 단일 읽기 쓰기를 허용한다`` () =
     Assert.Equal(200, Address.parseDWord "읽기" "D200")
     Assert.Equal(100, Address.parseDWord "쓰기" " d100 ")
     Assert.ThrowsAny<exn>(fun () -> Address.parseDWord "읽기" "M100" |> ignore)
+
+[<Fact>]
+let ``formatBit 은 parseBit 의 반대다`` () =
+    Assert.Equal("P00120", Address.formatBit 'P' 12 0)
+    Assert.Equal("M01008", Address.formatBit 'M' 100 8)
+    Assert.Equal("M0100F", Address.formatBit 'M' 100 15)
+    Assert.Equal("M00510", Address.formatBit 'M' 51 0)
+    for address in [ "M01008"; "P00120"; "M0100F"; "P0013F"; "M00501" ] do
+        let b = Address.parseBit address
+        Assert.Equal(address, Address.formatBit b.Area b.Word b.Bit)
+
+[<Fact>]
+let ``offsetBit 은 WORD 경계를 넘어간다`` () =
+    Assert.Equal("P00121", Address.offsetBit "P00120" 1)
+    Assert.Equal("P00127", Address.offsetBit "P00120" 7)
+    Assert.Equal("P0012F", Address.offsetBit "P00120" 15)
+    // PW12 bit15 다음은 PW13 bit0
+    Assert.Equal("P00130", Address.offsetBit "P00120" 16)
+    Assert.Equal("M01008", Address.offsetBit "M01000" 8)
+    Assert.Equal("M01010", Address.offsetBit "M0100F" 1)

@@ -148,6 +148,23 @@ module I18n =
         | NumDisplay -> t "type.numDisplay"
         | Text -> t "type.text"
 
+    /// 터치스크린 부품 종류 이름
+    let partLabel (kind: HmiPartKind) =
+        match kind with
+        | PartButton -> t "part.button"
+        | PartLamp -> t "part.lamp"
+        | PartToggle -> t "part.toggle"
+        | PartValue -> t "part.value"
+        | PartGauge -> t "part.gauge"
+        | PartRotary -> t "part.rotary"
+        | PartArrow -> t "part.arrow"
+        | PartSetValue -> t "part.setValue"
+        | PartLampArray -> t "part.lampArray"
+        | PartBar -> t "part.bar"
+        | PartClock -> t "part.clock"
+        | PartLabel -> t "part.label"
+        | PartPanel -> t "part.panel"
+
     /// 스위치 동작 이름
     let actionLabel (action: SwitchAction) =
         match action with

@@ -123,7 +123,9 @@ type HmiProject =
       Items: HmiItem list
       /// 배치할 수 있는 도면 크기 (스크롤 영역)
       ScreenWidth: int
-      ScreenHeight: int }
+      ScreenHeight: int
+      /// 터치스크린(HMI) 작화 화면. 부품은 Items 의 요소를 연결해 동작한다.
+      Hmi: HmiScreen }
 
 
 [<RequireQualifiedAccess>]
@@ -273,7 +275,8 @@ module Project =
           CycleMs = Limits.defaultCycleMs
           Items = []
           ScreenWidth = Limits.defaultScreenWidth
-          ScreenHeight = Limits.defaultScreenHeight }
+          ScreenHeight = Limits.defaultScreenHeight
+          Hmi = HmiScreen.empty }
 
     /// 요소가 도면 밖으로 나가 있으면 도면을 그만큼 넓힌다.
     let fitScreen (p: HmiProject) =
@@ -363,7 +366,8 @@ module Project =
           CycleMs = Limits.defaultCycleMs
           Items = swItems @ [ numInput; numDisplay; text ]
           ScreenWidth = Limits.defaultScreenWidth
-          ScreenHeight = Limits.defaultScreenHeight }
+          ScreenHeight = Limits.defaultScreenHeight
+          Hmi = HmiScreen.empty }
 
     /// 폴링 주기에 읽어야 할 비트 / WORD 주소 목록
     let scanAddresses (items: HmiItem seq) =

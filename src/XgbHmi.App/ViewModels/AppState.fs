@@ -5,7 +5,15 @@ open System.Collections.ObjectModel
 open System.Collections.Specialized
 open XgbHmi.Core
 
-/// 프로젝트 편집 상태 전체. 표 / 트리 / 캔버스 / 속성창이 이 하나를 공유한다.
+/// 되돌리기 스냅숏 한 벌. 화면 요소와 터치스크린 부품을 함께 담아 Ctrl+Z 가 양쪽에 통한다.
+type internal EditSnapshot =
+    { Items: HmiItem list
+      Parts: HmiPart list
+      HmiWidth: int
+      HmiHeight: int
+      HmiBackground: string }
+
+/// 프로젝트 편집 상태 전체. 표 / 트리 / 캔버스 / 속성창 / HMI 작화가 이 하나를 공유한다.
 type AppState() =
 
     let elements = ObservableCollection<ElementVm>()
@@ -15,6 +23,19 @@ type AppState() =
     let selectionChanged = Event<unit>()
     let itemChanged = Event<ElementVm * string>()
     let dirtyChanged = Event<bool>()
+
+    // ---------- 터치스크린(HMI) 작화 ----------
+    let hmiParts = ObservableCollection<HmiPartVm>()
+    let mutable hmiSelected: HmiPartVm option = None
+    let mutable hmiWidth = HmiLimits.defaultWidth
+    let mutable hmiHeight = HmiLimits.defaultHeight
+    let mutable hmiBackground = ""
+    let mutable hmiCopyBuffer: HmiPart list = []
+
+    let hmiStructureChanged = Event<unit>()
+    let hmiSelectionChanged = Event<unit>()
+    let hmiPartChanged = Event<HmiPartVm * string>()
+    let hmiScreenChanged = Event<unit>()
 
     let mutable projectPath = ""
     let mutable plcIp = Limits.defaultIp
@@ -30,8 +51,8 @@ type AppState() =
     let historyChanged = Event<unit>()
 
     // 되돌리기 / 다시 실행 (요소 목록 전체를 스냅숏으로 보관한다)
-    let undoStack = System.Collections.Generic.Stack<HmiItem list>()
-    let redoStack = System.Collections.Generic.Stack<HmiItem list>()
+    let undoStack = System.Collections.Generic.Stack<EditSnapshot>()
+    let redoStack = System.Collections.Generic.Stack<EditSnapshot>()
     let maxHistory = 60
     let mutable lastEditTicks = 0L
     /// 되돌리기 적용 중에는 스냅숏을 남기지 않는다.
@@ -45,6 +66,16 @@ type AppState() =
     let currentItems () =
         elements |> Seq.map (fun e -> e.ToItem()) |> List.ofSeq
 
+    let currentParts () =
+        hmiParts |> Seq.map (fun e -> e.ToPart()) |> List.ofSeq
+
+    let snapshot () =
+        { Items = currentItems ()
+          Parts = currentParts ()
+          HmiWidth = hmiWidth
+          HmiHeight = hmiHeight
+          HmiBackground = hmiBackground }
+
     let trimHistory () =
         if undoStack.Count > maxHistory then
             let keep = undoStack.ToArray() |> Array.truncate maxHistory |> Array.rev
@@ -57,7 +88,7 @@ type AppState() =
         if not restoring then
             let now = DateTime.UtcNow.Ticks / 10000L
             if coalesceMs <= 0L || now - lastEditTicks > coalesceMs then
-                undoStack.Push(currentItems ())
+                undoStack.Push(snapshot ())
                 redoStack.Clear()
                 trimHistory ()
                 historyChanged.Trigger()
@@ -68,6 +99,13 @@ type AppState() =
         vm.PropertyChangedEvent.Add(fun args ->
             setDirty true
             itemChanged.Trigger(vm, args.PropertyName))
+        vm
+
+    let attachPart (vm: HmiPartVm) =
+        vm.SetBeforeChangeHook(fun () -> pushHistory 700L)
+        vm.PropertyChangedEvent.Add(fun args ->
+            setDirty true
+            hmiPartChanged.Trigger(vm, args.PropertyName))
         vm
 
     member _.Elements = elements
@@ -116,31 +154,41 @@ type AppState() =
     /// 바꾸기 직전 상태를 기록한다. (명령 실행 전에 부른다)
     member _.PushHistory() = pushHistory 0L
 
-    member private _.RestoreItems(items: HmiItem list) =
+    member private _.RestoreSnapshot(snap: EditSnapshot) =
         restoring <- true
         selection.Clear()
         elements.Clear()
-        for item in items do
+        for item in snap.Items do
             elements.Add(attach (ElementVm item))
+        hmiSelected <- None
+        hmiParts.Clear()
+        for part in snap.Parts do
+            hmiParts.Add(attachPart (HmiPartVm part))
+        hmiWidth <- snap.HmiWidth
+        hmiHeight <- snap.HmiHeight
+        hmiBackground <- snap.HmiBackground
         restoring <- false
         setDirty true
         structureChanged.Trigger()
         selectionChanged.Trigger()
+        hmiScreenChanged.Trigger()
+        hmiStructureChanged.Trigger()
+        hmiSelectionChanged.Trigger()
         historyChanged.Trigger()
 
     member this.Undo() =
         if undoStack.Count = 0 then false
         else
-            redoStack.Push(currentItems ())
-            this.RestoreItems(undoStack.Pop())
+            redoStack.Push(snapshot ())
+            this.RestoreSnapshot(undoStack.Pop())
             lastEditTicks <- 0L
             true
 
     member this.Redo() =
         if redoStack.Count = 0 then false
         else
-            undoStack.Push(currentItems ())
-            this.RestoreItems(redoStack.Pop())
+            undoStack.Push(snapshot ())
+            this.RestoreSnapshot(redoStack.Pop())
             lastEditTicks <- 0L
             true
     member _.SelectionChanged = selectionChanged.Publish
@@ -222,6 +270,14 @@ type AppState() =
         elements.Clear()
         for item in p.Items do
             elements.Add(attach (ElementVm item))
+        hmiSelected <- None
+        hmiParts.Clear()
+        for part in p.Hmi.Parts do
+            hmiParts.Add(attachPart (HmiPartVm part))
+        hmiWidth <- p.Hmi.Width
+        hmiHeight <- p.Hmi.Height
+        hmiBackground <- p.Hmi.Background
+        hmiCopyBuffer <- []
         plcIp <- p.PlcIp
         port <- p.Port
         cycleMs <- p.CycleMs
@@ -232,6 +288,9 @@ type AppState() =
         structureChanged.Trigger()
         selectionChanged.Trigger()
         screenChanged.Trigger()
+        hmiScreenChanged.Trigger()
+        hmiStructureChanged.Trigger()
+        hmiSelectionChanged.Trigger()
 
     member _.ToProject() : HmiProject =
         { PlcIp = plcIp
@@ -239,7 +298,13 @@ type AppState() =
           CycleMs = cycleMs
           Items = elements |> Seq.map (fun e -> Item.normalize (e.ToItem())) |> List.ofSeq
           ScreenWidth = screenWidth
-          ScreenHeight = screenHeight }
+          ScreenHeight = screenHeight
+          Hmi =
+            HmiScreen.normalize
+                { Width = hmiWidth
+                  Height = hmiHeight
+                  Background = hmiBackground
+                  Parts = currentParts () } }
         |> Project.fitScreen
 
     /// 전체 요소 검사. 첫 오류 메시지를 돌려준다. (원본 ValidateItem 규칙)
@@ -255,7 +320,23 @@ type AppState() =
         | None -> Ok()
 
     member _.ScanAddresses() =
-        Project.scanAddresses (elements |> Seq.map (fun e -> e.ToItem()))
+        let bits, words = Project.scanAddresses (elements |> Seq.map (fun e -> e.ToItem()))
+        // 램프 배열은 연결한 요소의 주소에서 시작해 연속한 비트를 함께 본다.
+        // 그 비트들은 어느 요소에도 없으므로 여기서 폴링 목록에 넣어 줘야 값이 들어온다.
+        let extra = ResizeArray<string>(bits)
+        let has (v: string) =
+            extra |> Seq.exists (fun s -> String.Equals(s, v, StringComparison.OrdinalIgnoreCase))
+        for part in hmiParts do
+            if part.Kind = PartLampArray && part.Count > 1 then
+                match elements |> Seq.tryFind (fun e -> e.Id = part.TargetId) with
+                | Some target when not (String.IsNullOrWhiteSpace target.Device) ->
+                    for i in 1 .. part.Count - 1 do
+                        try
+                            let address = XgbHmi.Protocol.Address.offsetBit target.Device i
+                            if not (has address) then extra.Add address
+                        with _ -> ()
+                | _ -> ()
+        List.ofSeq extra, words
 
     // ---------- 요소 편집 ----------
 
@@ -440,3 +521,183 @@ type AppState() =
         if idx >= 0 && idx < elements.Count - 1 then
             elements.Move(idx, elements.Count - 1)
             structureChanged.Trigger()
+
+    // ---------- 터치스크린(HMI) 작화 ----------
+
+    member _.HmiParts = hmiParts
+    member _.HmiStructureChanged = hmiStructureChanged.Publish
+    member _.HmiSelectionChanged = hmiSelectionChanged.Publish
+    member _.HmiPartChanged = hmiPartChanged.Publish
+    member _.HmiScreenChanged = hmiScreenChanged.Publish
+
+    /// 터치패널 가로 해상도
+    member _.HmiWidth
+        with get () = hmiWidth
+        and set v =
+            let v = max HmiLimits.minScreen (min HmiLimits.maxScreen v)
+            if hmiWidth <> v then
+                hmiWidth <- v
+                setDirty true
+                hmiScreenChanged.Trigger()
+
+    member _.HmiHeight
+        with get () = hmiHeight
+        and set v =
+            let v = max HmiLimits.minScreen (min HmiLimits.maxScreen v)
+            if hmiHeight <> v then
+                hmiHeight <- v
+                setDirty true
+                hmiScreenChanged.Trigger()
+
+    member _.HmiBackground
+        with get () = hmiBackground
+        and set v =
+            let v = HmiPart.normalizeColor v
+            if hmiBackground <> v then
+                hmiBackground <- v
+                setDirty true
+                hmiScreenChanged.Trigger()
+
+    member _.HmiSelected = hmiSelected
+
+    member _.IsPartSelected(vm: HmiPartVm) =
+        match hmiSelected with
+        | Some s -> Object.ReferenceEquals(s, vm)
+        | None -> false
+
+    member _.SelectPart(vm: HmiPartVm option) =
+        let same =
+            match hmiSelected, vm with
+            | Some a, Some b -> Object.ReferenceEquals(a, b)
+            | None, None -> true
+            | _ -> false
+        if not same then
+            hmiSelected <- vm
+            hmiSelectionChanged.Trigger()
+
+    member _.FindPartById(id: string) =
+        hmiParts |> Seq.tryFind (fun e -> e.Id = id)
+
+    member private _.AddPartItem(part: HmiPart, select: bool) =
+        let vm = attachPart (HmiPartVm part)
+        hmiParts.Add vm
+        if select then hmiSelected <- Some vm
+        setDirty true
+        vm
+
+    /// 빈 자리를 찾아 새 부품을 놓는다.
+    member this.AddPart(kind: HmiPartKind) =
+        pushHistory 0L
+        let template = HmiPart.create kind
+        // 같은 종류가 이미 있으면 그 생김새(크기·모양·색·글자 크기)를 물려받는다.
+        // 한 번 알맞게 꾸며 두면 다음 부품부터 그대로 나온다.
+        let template =
+            match hmiParts |> Seq.filter (fun e -> e.Kind = kind) |> Seq.tryLast with
+            | Some prev ->
+                let q = prev.ToPart()
+                { template with
+                    Width = q.Width
+                    Height = q.Height
+                    Shape = q.Shape
+                    OffColor = q.OffColor
+                    OnColor = q.OnColor
+                    TextColor = q.TextColor
+                    BorderColor = q.BorderColor
+                    FontSize = q.FontSize
+                    Corner = q.Corner
+                    Align = q.Align }
+            | None -> template
+        let x, y = HmiScreen.nextFreePosition (currentParts ()) hmiWidth hmiHeight template.Width template.Height
+        let vm = this.AddPartItem({ template with X = x; Y = y }, true)
+        hmiStructureChanged.Trigger()
+        hmiSelectionChanged.Trigger()
+        vm
+
+    /// 선택한 화면 요소를 그대로 터치스크린 부품으로 만든다.
+    /// 스위치는 버튼, 램프는 램프, 숫자는 값 부품으로 짝지어 준다.
+    member this.AddPartsFromElements(targets: ElementVm seq) =
+        let targets = List.ofSeq targets
+        if targets.IsEmpty then 0
+        else
+            pushHistory 0L
+            hmiSelected <- None
+            let mutable made = 0
+            for t in targets do
+                let kind =
+                    match t.Kind with
+                    | Switch -> Some PartButton
+                    | SwitchLamp -> Some PartButton
+                    | Lamp -> Some PartLamp
+                    | NumInput -> Some PartValue
+                    | NumDisplay -> Some PartValue
+                    | Text -> Some PartLabel
+                    | MasterSwitch -> None
+                match kind with
+                | None -> ()
+                | Some kind ->
+                    let template = HmiPart.create kind
+                    let x, y =
+                        HmiScreen.nextFreePosition (currentParts ()) hmiWidth hmiHeight template.Width template.Height
+                    let part =
+                        { template with
+                            X = x
+                            Y = y
+                            TargetId = (if kind = PartLabel then "" else t.Id)
+                            Text = (if kind = PartLabel then t.Name else "") }
+                    this.AddPartItem(part, false) |> ignore
+                    made <- made + 1
+            if made > 0 then
+                hmiStructureChanged.Trigger()
+                hmiSelectionChanged.Trigger()
+            made
+
+    member this.DuplicatePart(vm: HmiPartVm) =
+        pushHistory 0L
+        let src = vm.ToPart()
+        hmiSelected <- None
+        let created = this.AddPartItem({ HmiPart.clone true src with X = src.X + 24; Y = src.Y + 24 }, true)
+        hmiStructureChanged.Trigger()
+        hmiSelectionChanged.Trigger()
+        created
+
+    member _.CopyPart(vm: HmiPartVm) =
+        hmiCopyBuffer <- [ HmiPart.clone false (vm.ToPart()) ]
+
+    member this.PastePartAt(px: int, py: int) =
+        if hmiCopyBuffer.IsEmpty then 0
+        else
+            pushHistory 0L
+            hmiSelected <- None
+            for src in hmiCopyBuffer do
+                this.AddPartItem({ HmiPart.clone true src with X = max 0 px; Y = max 0 py }, true) |> ignore
+            hmiStructureChanged.Trigger()
+            hmiSelectionChanged.Trigger()
+            hmiCopyBuffer.Length
+
+    member this.RemovePart(vm: HmiPartVm) =
+        pushHistory 0L
+        if hmiParts.Remove vm then
+            if this.IsPartSelected vm then hmiSelected <- None
+            setDirty true
+            hmiStructureChanged.Trigger()
+            hmiSelectionChanged.Trigger()
+            true
+        else false
+
+    /// 부품을 맨 앞으로 (겹쳤을 때 그리는 순서)
+    member _.MovePartToFront(vm: HmiPartVm) =
+        let idx = hmiParts.IndexOf vm
+        if idx >= 0 && idx < hmiParts.Count - 1 then
+            pushHistory 0L
+            hmiParts.Move(idx, hmiParts.Count - 1)
+            setDirty true
+            hmiStructureChanged.Trigger()
+
+    /// 부품을 맨 뒤로 (패널을 배경으로 깔 때)
+    member _.MovePartToBack(vm: HmiPartVm) =
+        let idx = hmiParts.IndexOf vm
+        if idx > 0 then
+            pushHistory 0L
+            hmiParts.Move(idx, 0)
+            setDirty true
+            hmiStructureChanged.Trigger()

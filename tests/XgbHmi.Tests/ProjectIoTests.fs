@@ -327,3 +327,192 @@ let ``통합 스위치 기본 크기는 내용이 들어갈 만큼 넉넉하다`
     // 대상 고르기 + 목록 + 조작 버튼 + 전체 종료가 한 장에 들어가야 한다.
     Assert.Equal(320, item.Width)
     Assert.Equal(380, item.Height)
+
+// ---------------------------------------------------------------------------
+//  터치스크린(HMI) 화면
+// ---------------------------------------------------------------------------
+
+[<Fact>]
+let ``HMI 부품을 저장하고 다시 읽으면 값이 같다`` () =
+    let path = tempFile ()
+    try
+        let switch = { Item.create Switch with Id = "sw1"; Device = "M1000" }
+        let button =
+            { HmiPart.create PartButton with
+                Id = "pt1"
+                TargetId = "sw1"
+                Text = "기동"
+                OnText = "RUN"
+                OffText = "STOP"
+                X = 120
+                Y = 64
+                Width = 160
+                Height = 160
+                Shape = HmiShape.circle
+                OnColor = "#2FA84F"
+                OffColor = "#1E232B"
+                FontSize = 22 }
+        let gauge =
+            { HmiPart.create PartGauge with
+                Id = "pt2"
+                TargetId = "num1"
+                Unit = "℃"
+                X = 400
+                Y = 64 }
+
+        let original =
+            { Project.empty with
+                Items = [ switch ]
+                Hmi =
+                    { Width = 1280
+                      Height = 800
+                      Background = "#101318"
+                      Parts = [ button; gauge ] } }
+
+        ProjectIo.save path original
+        let reloaded = ProjectIo.load path
+
+        Assert.Equal(1280, reloaded.Hmi.Width)
+        Assert.Equal(800, reloaded.Hmi.Height)
+        Assert.Equal("#101318", reloaded.Hmi.Background)
+        Assert.Equal(2, reloaded.Hmi.Parts.Length)
+
+        let b = reloaded.Hmi.Parts.Head
+        Assert.Equal(PartButton, b.Kind)
+        Assert.Equal("sw1", b.TargetId)
+        Assert.Equal("기동", b.Text)
+        Assert.Equal("RUN", b.OnText)
+        Assert.Equal("STOP", b.OffText)
+        Assert.Equal(HmiShape.circle, b.Shape)
+        Assert.Equal("#2FA84F", b.OnColor)
+        Assert.Equal(22, b.FontSize)
+        Assert.Equal(120, b.X)
+        Assert.Equal(160, b.Width)
+
+        let g = reloaded.Hmi.Parts.[1]
+        Assert.Equal(PartGauge, g.Kind)
+        Assert.Equal("num1", g.TargetId)
+        Assert.Equal("℃", g.Unit)
+    finally
+        if File.Exists path then File.Delete path
+
+[<Fact>]
+let ``HMI 항목이 없는 예전 파일도 그대로 열린다`` () =
+    let path = tempFile ()
+    try
+        // v6 가 저장한 파일에는 <Hmi> 가 없다. 빈 터치스크린으로 읽혀야 한다.
+        File.WriteAllText(
+            path,
+            """<?xml version="1.0" encoding="utf-8"?>
+<HmiProject>
+  <PlcIp>192.168.1.120</PlcIp>
+  <Port>2004</Port>
+  <CycleMs>300</CycleMs>
+  <Items>
+    <HmiItem>
+      <Type>SWITCH</Type>
+      <Name>job start</Name>
+      <Device>M01009</Device>
+      <Action>토글</Action>
+    </HmiItem>
+  </Items>
+</HmiProject>"""
+        )
+
+        let loaded = ProjectIo.load path
+        Assert.Single loaded.Items |> ignore
+        Assert.Empty loaded.Hmi.Parts
+        Assert.Equal(HmiLimits.defaultWidth, loaded.Hmi.Width)
+        Assert.Equal(HmiLimits.defaultHeight, loaded.Hmi.Height)
+    finally
+        if File.Exists path then File.Delete path
+
+[<Fact>]
+let ``HMI 부품 값은 저장할 때 안전한 범위로 맞춰진다`` () =
+    let path = tempFile ()
+    try
+        let broken =
+            { HmiPart.create PartValue with
+                X = -50
+                Y = -10
+                Width = 2
+                Height = 1
+                FontSize = 500
+                Corner = 999
+                Align = "위쪽"
+                Shape = "삼각형"
+                OnColor = "빨강" }
+
+        let project = { Project.empty with Hmi = { HmiScreen.empty with Parts = [ broken ] } }
+        ProjectIo.save path project
+        let part = (ProjectIo.load path).Hmi.Parts.Head
+
+        Assert.Equal(0, part.X)
+        Assert.Equal(0, part.Y)
+        Assert.Equal(HmiLimits.minPartWidth, part.Width)
+        Assert.Equal(HmiLimits.minPartHeight, part.Height)
+        Assert.Equal(HmiLimits.maxFontSize, part.FontSize)
+        Assert.Equal(60, part.Corner)
+        Assert.Equal("CENTER", part.Align)
+        Assert.Equal(HmiShape.rect, part.Shape)
+        // 색은 #RRGGBB 만 받는다. 아니면 테마 기본으로 되돌린다.
+        Assert.Equal("", part.OnColor)
+    finally
+        if File.Exists path then File.Delete path
+
+[<Fact>]
+let ``부품 동작 코드는 스위치 동작 코드와 같아야 한다`` () =
+    // 부품에서 고른 동작은 SwitchAction.parse 로 해석된다.
+    // 두 목록이 어긋나면 버튼이 조용히 '토글' 로 떨어지므로 여기서 묶어 둔다.
+    Assert.Equal<string list>("" :: SwitchAction.codes, HmiPart.actionCodes)
+    for code in SwitchAction.codes do
+        Assert.Equal(code, HmiPart.normalizeAction code)
+    Assert.Equal("", HmiPart.normalizeAction "없는동작")
+
+[<Fact>]
+let ``새 부품 종류와 설정도 저장하고 다시 읽으면 같다`` () =
+    let path = tempFile ()
+    try
+        let rotary =
+            { HmiPart.create PartRotary with
+                Id = "r1"
+                TargetId = "mode"
+                Count = 3
+                Options = "LOW|MID|HIGH" }
+        let arrow = { HmiPart.create PartArrow with Id = "a1"; TargetId = "sv"; Step = -5 }
+        let preset = { HmiPart.create PartSetValue with Id = "s1"; TargetId = "sv"; WriteValue = 480 }
+        let array' = { HmiPart.create PartLampArray with Id = "l1"; TargetId = "in"; Count = 8; Vertical = true }
+        let bar = { HmiPart.create PartBar with Id = "b1"; TargetId = "pv"; Decimals = 1; Unit = "%" }
+        let clock = { HmiPart.create PartClock with Id = "c1"; Text = "HH:mm" }
+        let onButton = { HmiPart.create PartButton with Id = "on1"; TargetId = "coil"; Action = "ON" }
+        let offButton = { HmiPart.create PartButton with Id = "off1"; TargetId = "coil"; Action = "OFF" }
+
+        let project =
+            { Project.empty with
+                Hmi =
+                    { HmiScreen.empty with
+                        Parts = [ rotary; arrow; preset; array'; bar; clock; onButton; offButton ] } }
+
+        ProjectIo.save path project
+        let parts = (ProjectIo.load path).Hmi.Parts
+        Assert.Equal(8, parts.Length)
+
+        let byId id = parts |> List.find (fun p -> p.Id = id)
+        Assert.Equal(PartRotary, (byId "r1").Kind)
+        Assert.Equal(3, (byId "r1").Count)
+        Assert.Equal("LOW|MID|HIGH", (byId "r1").Options)
+        // 삼각 버튼은 증감폭의 부호가 방향이므로 음수가 살아 있어야 한다.
+        Assert.Equal(-5, (byId "a1").Step)
+        Assert.Equal(480, (byId "s1").WriteValue)
+        Assert.True((byId "l1").Vertical)
+        Assert.Equal(8, (byId "l1").Count)
+        Assert.Equal(1, (byId "b1").Decimals)
+        Assert.Equal("%", (byId "b1").Unit)
+        Assert.Equal(PartClock, (byId "c1").Kind)
+        Assert.Equal("HH:mm", (byId "c1").Text)
+        // 같은 코일에 ON / OFF 버튼을 따로 둘 수 있어야 한다.
+        Assert.Equal("ON", (byId "on1").Action)
+        Assert.Equal("OFF", (byId "off1").Action)
+        Assert.Equal((byId "on1").TargetId, (byId "off1").TargetId)
+    finally
+        if File.Exists path then File.Delete path

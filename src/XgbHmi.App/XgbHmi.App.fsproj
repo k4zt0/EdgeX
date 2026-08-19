@@ -18,11 +18,15 @@
     <Compile Include="Services/ThemeService.fs" />
     <Compile Include="Services/PlcService.fs" />
     <Compile Include="ViewModels/ElementVm.fs" />
+    <Compile Include="ViewModels/HmiPartVm.fs" />
     <Compile Include="ViewModels/AppState.fs" />
     <Compile Include="Views/Ui.fs" />
     <Compile Include="Views/Dialogs.fs" />
     <Compile Include="Views/CardFactory.fs" />
     <Compile Include="Views/RunCanvas.fs" />
+    <Compile Include="Views/HmiParts.fs" />
+    <Compile Include="Views/HmiCanvas.fs" />
+    <Compile Include="Views/HmiDesigner.fs" />
     <Compile Include="Views/ElementTable.fs" />
     <Compile Include="Views/ProjectTree.fs" />
     <Compile Include="Views/PropertyPanel.fs" />

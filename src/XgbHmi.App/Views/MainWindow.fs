@@ -47,6 +47,11 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     let mutable monitorCanvas: RunCanvasView = null
     let mutable monitorStatus: TextBlock = null
     let mutable canvasHost: CanvasHost option = None
+    /// HMI 탭(터치스크린 작화)과 운전 중에 따로 띄우는 HMI 창
+    let mutable hmiDesigner: HmiDesignerView = null
+    let mutable hmiWindow: Window = null
+    let mutable hmiWindowCanvas: HmiCanvasView = null
+    let mutable hmiWindowStatus: TextBlock = null
     let mutable tableView: ElementTableView = null
     let mutable treeView: ProjectTreeView = null
     let mutable propertyView: PropertyPanelView = null
@@ -146,6 +151,9 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             if not (isNull monitorStatus) then
                 monitorStatus.Text <- caption + "   ·   " + detail
                 monitorStatus.Foreground <- Ui.brush fg
+            if not (isNull hmiWindowStatus) then
+                hmiWindowStatus.Text <- caption + "   ·   " + detail
+                hmiWindowStatus.Foreground <- Ui.brush fg
             statusProfile.Text <-
                 if String.IsNullOrWhiteSpace plc.ProfileName then ""
                 else I18n.t "conn.profile" + ": " + plc.ProfileName
@@ -183,8 +191,15 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
         [ if not (isNull canvasView) then yield canvasView
           if not (isNull monitorCanvas) then yield monitorCanvas ]
 
+    /// 지금 살아 있는 터치스크린 캔버스들. (HMI 탭 + 운전 중 HMI 창)
+    let hmiCanvases () =
+        [ if not (isNull hmiDesigner) then yield hmiDesigner.Canvas
+          if not (isNull hmiWindowCanvas) then yield hmiWindowCanvas ]
+
     let rebuildCanvases () =
         for c in canvases () do
+            c.Rebuild()
+        for c in hmiCanvases () do
             c.Rebuild()
 
     let refreshValues () =
@@ -194,6 +209,8 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
               CommFault = commFault
               Operations = List.ofSeq runningOps.Values }
         for c in canvases () do
+            c.RefreshValues status
+        for c in hmiCanvases () do
             c.RefreshValues status
 
     /// 조작을 시작했다고 알린다. (통합 스위치에 '실행 중' 으로 뜬다)
@@ -318,8 +335,8 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
         with ex -> Error ex.Message
 
     // ---------- PLC 쓰기 가드 (원본 EnsureCanWrite) ----------
-    let ensureCanWrite () : bool =
-        if layoutMode then
+    let ensureCanWriteCore (checkLayout: bool) : bool =
+        if checkLayout && layoutMode then
             Dialogs.info win (I18n.t "cmd.layoutMode") (I18n.t "msg.layoutBlocked") |> ignore
             false
         elif not writeEnabled then
@@ -330,8 +347,15 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             false
         else true
 
+    let ensureCanWrite () = ensureCanWriteCore true
+
+    /// HMI 부품용. 터치스크린은 제 편집 모드로 잠기므로 운전 화면의 '배치 편집' 과는 상관없이 동작한다.
+    let ensureCanWriteHmi () = ensureCanWriteCore false
+
     /// 조용한 확인용 (순간 스위치를 뗄 때 등, 대화상자를 띄우지 않는다)
     let canWriteSilently () = not layoutMode && writeEnabled && plc.IsRunning && connected
+
+    let canWriteSilentlyHmi () = writeEnabled && plc.IsRunning && connected
 
     /// 로그에 함께 남길 XGT 직접변수 이름 (예: M01008 -> %MX1608)
     let xgtName (device: string) =
@@ -343,12 +367,13 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
 
     let onOff (v: bool) = if v then "ON" else "OFF"
 
-    let writeBit (vm: ElementVm) (value: bool) =
+    /// 비트 쓰기 본체. 부르는 스레드에서 그대로 돈다.
+    /// 한 번 누름에 여러 번 써야 할 때(상호 배타 그룹, 후속 상태) 순서를 지키려고 동기로 둔다.
+    let writeBitSync (vm: ElementVm) (value: bool) =
         let device = vm.Device
         let started = DateTime.Now
-        beginOp vm (onOff value)
-        Task.Run(fun () ->
-            match plc.WriteBitVerified(device, value) with
+        onUi (fun () -> beginOp vm (onOff value))
+        (match plc.WriteBitVerified(device, value) with
             | Ok readback ->
                 let elapsed = (DateTime.Now - started).TotalMilliseconds
                 onUi (fun () ->
@@ -375,15 +400,16 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                     endOp vm false message
                     log Failure (sprintf "BIT WRITE ERROR %s (%s) <- %s  %.0f ms : %s" device (xgtName device) (onOff value) (DateTime.Now - started).TotalMilliseconds message)
                     Dialogs.error win (I18n.tf "msg.writeFailed" [| box device; box message |]) |> ignore))
-        |> ignore
+
+    let writeBit (vm: ElementVm) (value: bool) =
+        Task.Run(fun () -> writeBitSync vm value) |> ignore
 
     /// 토글은 클릭 순간 PLC의 실제 상태를 읽어 반전한다. (v4 토글 수정과 동일)
-    let toggleBit (vm: ElementVm) =
+    let toggleBitSync (vm: ElementVm) =
         let device = vm.Device
         let started = DateTime.Now
-        beginOp vm (I18n.actionLabel Toggle)
-        Task.Run(fun () ->
-            match plc.ReadBitNow device with
+        onUi (fun () -> beginOp vm (I18n.actionLabel Toggle))
+        (match plc.ReadBitNow device with
             | Ok current ->
                 onUi (fun () ->
                     log Info (sprintf "TOGGLE READ %s (%s) = %s  ->  WRITE %s  [%s]" device (xgtName device) (onOff current) (onOff (not current)) vm.Name)
@@ -415,7 +441,9 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                     endOp vm false message
                     log Failure (sprintf "TOGGLE READ ERROR %s (%s): %s" device (xgtName device) message)
                     Dialogs.error win (I18n.tf "msg.toggleReadFailed" [| box device; box message |]) |> ignore))
-        |> ignore
+
+    let toggleBit (vm: ElementVm) =
+        Task.Run(fun () -> toggleBitSync vm) |> ignore
 
     let writeWord (vm: ElementVm) (entered: int) =
         let device = vm.Device
@@ -503,6 +531,131 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
           KillAll = killAll
           IsInteractive = fun () -> not layoutMode }
 
+    /// 터치스크린 부품이 쓰는 통로. 쓰기 자체는 운전 화면과 똑같은 검증 경로를 탄다.
+    let hmiCardCallbacks: CardFactory.CardCallbacks =
+        { cardCallbacks with
+            Toggle = (fun vm -> if ensureCanWriteHmi () then toggleBit vm)
+            WriteOn = (fun vm -> if ensureCanWriteHmi () then writeBit vm true)
+            WriteOff = (fun vm -> if ensureCanWriteHmi () then writeBit vm false)
+            MomentaryDown = (fun vm -> if ensureCanWriteHmi () then writeBit vm true)
+            MomentaryUp = (fun vm -> if canWriteSilentlyHmi () then writeBit vm false)
+            NumericWrite = (fun vm value -> if ensureCanWriteHmi () then writeWord vm value)
+            IsInteractive = fun () -> true }
+
+    /// 상호 배타 버튼 그룹. 하나를 누르면 같은 그룹의 다른 코일을 먼저 끈다.
+    /// 대화상자는 띄우지 않는다. 정작 누른 버튼 쪽에서 쓰기 잠금을 알려 주기 때문이다.
+    let resetGroup (peers: ElementVm list) =
+        if not peers.IsEmpty && canWriteSilentlyHmi () then
+            for peer in peers do
+                if ItemKind.hasAction peer.Kind && not (String.IsNullOrWhiteSpace peer.Device) then
+                    log Info (sprintf "GROUP RESET %s <- OFF [%s]" peer.Device peer.Name)
+                    writeBit peer false
+
+    /// 터치스크린 버튼 한 번 누름. 여러 코일을 건드리므로 **순서를 지켜 하나의 작업으로** 보낸다.
+    /// 그룹 해제 -> 본 동작 -> 후속 상태. 따로 던지면 같은 코일에 대한 쓰기가 뒤엉킬 수 있다.
+    let runPress (plan: HmiParts.PressPlan) =
+        // 순간 스위치를 떼는 것은 조용히 처리한다. 누를 때 이미 알렸기 때문이다.
+        let allowed =
+            if plan.Action = Momentary then canWriteSilentlyHmi () else ensureCanWriteHmi ()
+        if allowed then
+            Task.Run(fun () ->
+                for peer in plan.ResetOff do
+                    if ItemKind.hasAction peer.Kind && not (String.IsNullOrWhiteSpace peer.Device) then
+                        onUi (fun () -> log Info (sprintf "GROUP RESET %s <- OFF [%s]" peer.Device peer.Name))
+                        writeBitSync peer false
+
+                match plan.Action with
+                | Toggle -> toggleBitSync plan.Target
+                | On -> writeBitSync plan.Target true
+                | Off -> writeBitSync plan.Target false
+                // 순간 스위치는 누를 때 이미 ON 을 썼다. 여기서는 떼는 쪽만 쓴다.
+                | Momentary -> writeBitSync plan.Target false
+
+                match plan.ThenOn with
+                | Some next when
+                    ItemKind.hasAction next.Kind
+                    && not (String.IsNullOrWhiteSpace next.Device)
+                    && next.Id <> plan.Target.Id ->
+                    onUi (fun () -> log Info (sprintf "THEN ON %s <- ON [%s]" next.Device next.Name))
+                    writeBitSync next true
+                | _ -> ())
+            |> ignore
+
+    // ---------- 운전 중 HMI 창 ----------
+    /// 운전 중에는 터치스크린을 실제 패널처럼 따로 띄운다. 부품 편집은 하지 않고 눌러서 조작만 한다.
+    let closeHmiWindow () =
+        if not (isNull hmiWindow) then
+            let w = hmiWindow
+            hmiWindow <- null
+            w.Close()
+
+    let openHmiWindow () =
+        if isNull hmiWindow then
+            let p = ThemeService.current ()
+
+            let view =
+                new HmiCanvasView(
+                    state,
+                    { Cards = hmiCardCallbacks
+                      Info = ignore
+                      ResetGroup = resetGroup
+                      Press = runPress })
+            // 실제 패널처럼 쓰는 창이다. 여기서는 부품을 옮기지 않는다.
+            view.EditMode <- false
+            view.ShowGrid <- false
+            view.AutoFit <- true
+            view.Rebuild()
+            hmiWindowCanvas <- view
+
+            let statusText = Ui.mono 11.5 ""
+            statusText.Foreground <- Ui.brush p.TextMuted
+            statusText.Margin <- Thickness(10.0, 0.0, 10.0, 0.0)
+            hmiWindowStatus <- statusText
+
+            let bar =
+                Border(
+                    Background = Ui.brush p.StatusBar,
+                    BorderBrush = Ui.brush p.Border,
+                    BorderThickness = Thickness(0.0, 1.0, 0.0, 0.0),
+                    Height = 26.0,
+                    Child = statusText
+                )
+
+            let root = DockPanel(LastChildFill = true)
+            DockPanel.SetDock(bar, Dock.Bottom)
+            root.Children.Add bar
+            root.Children.Add view.Root
+
+            // 창은 패널 해상도 그대로 열고, 그 뒤에는 창 크기에 맞춰 저절로 배율이 맞는다.
+            let w =
+                Window(
+                    Title = projectLabel () + " — " + I18n.t "hmi.window",
+                    Width = float (min 1600 state.HmiWidth) + 16.0,
+                    Height = float (min 1000 state.HmiHeight) + 52.0,
+                    MinWidth = 360.0,
+                    MinHeight = 260.0,
+                    Background = Ui.brush p.Window,
+                    FontFamily = Ui.uiFont,
+                    WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                    Content = root
+                )
+            w.FlowDirection <- (if I18n.isRtl () then FlowDirection.RightToLeft else FlowDirection.LeftToRight)
+            w.Closed.Add(fun _ ->
+                (match box hmiWindowCanvas with
+                 | :? IDisposable as d -> d.Dispose()
+                 | _ -> ())
+                hmiWindowCanvas <- null
+                hmiWindowStatus <- null
+                hmiWindow <- null
+                log Info "HMI WINDOW CLOSED")
+            w.SizeChanged.Add(fun _ -> if not (isNull hmiWindowCanvas) then hmiWindowCanvas.FitToWindow())
+
+            hmiWindow <- w
+            w.Show()
+            view.FitToWindow()
+            refreshValues ()
+            log Info "HMI WINDOW OPEN"
+
     // ---------- 연결 ----------
     let applyConnectionFieldsToState () =
         if not (isNull ipBox) then state.PlcIp <- ipBox.Text.Trim()
@@ -527,6 +680,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
         plc.Disconnect()
         clearFaults ()
         closeMonitorWindow ()
+        closeHmiWindow ()
         setConnectedUi false
         writeEnabled <- false
         if not (isNull writeToggle) then
@@ -553,6 +707,9 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                     setStatus Online (DateTime.Now.ToString "HH:mm:ss.fff")
                     // 운전이 시작되면 운전 화면을 따로 띄운다.
                     openMonitorWindow ()
+                    // 터치스크린을 그려 뒀으면 HMI 창도 함께 띄운다.
+                    // 부품이 하나도 없으면 빈 창만 뜨므로 열지 않는다. (보기 메뉴에서 언제든 열 수 있다)
+                    if state.HmiParts.Count > 0 then openHmiWindow ()
                     refreshValues ()
                 | Error message ->
                     setConnectedUi false
@@ -752,6 +909,22 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             log Info "REDO"
         else log Info "REDO (다시 실행할 내용 없음)"
 
+    /// 지금 글자를 입력하는 중인지. 방향키와 Delete 를 가로채면 안 되는 상황을 가려낸다.
+    let isEditingText () =
+        match win.FocusManager with
+        | null -> false
+        | fm ->
+            let rec isEditor (v: Visual) =
+                if isNull v then false
+                else
+                    match v with
+                    | :? TextBox -> true
+                    | :? NumericUpDown -> true
+                    | _ -> isEditor (v.GetVisualParent())
+            match fm.GetFocusedElement() with
+            | :? Visual as focused -> isEditor focused
+            | _ -> false
+
     /// 선택한 요소를 방향키로 미세 이동한다.
     let nudge (dx: int) (dy: int) =
         if state.SelectionCount > 0 then
@@ -903,6 +1076,10 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
         viewMenu.Items.Add(
             Ui.checkableMenuItem (I18n.t "cmd.monitorWindow") (not (isNull monitorWindow)) (fun () ->
                 if isNull monitorWindow then openMonitorWindow () else closeMonitorWindow ()))
+        |> ignore
+        viewMenu.Items.Add(
+            Ui.checkableMenuItem (I18n.t "hmi.window") (not (isNull hmiWindow)) (fun () ->
+                if isNull hmiWindow then openHmiWindow () else closeHmiWindow ()))
         |> ignore
         menu.Items.Add viewMenu |> ignore
 
@@ -1241,9 +1418,23 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
         let tableTab = TabItem(Header = I18n.t "tab.table")
         tableTab.Content <- tableView.Root
 
+        // 터치스크린 작화. 부품은 표에 있는 요소를 연결해 그 주소로 동작한다.
+        hmiDesigner <-
+            new HmiDesignerView(
+                state,
+                { Cards = hmiCardCallbacks
+                  Info = (fun text -> if not (isNull statusGeometry) then statusGeometry.Text <- text)
+                  ResetGroup = resetGroup
+                  Press = runPress },
+                fun message -> log Info message
+            )
+        let hmiTab = TabItem(Header = I18n.t "tab.hmi")
+        hmiTab.Content <- hmiDesigner.Root
+
         let tabs = TabControl(Background = Ui.brush p.Surface)
         tabs.Items.Add runTab |> ignore
         tabs.Items.Add tableTab |> ignore
+        tabs.Items.Add hmiTab |> ignore
         documentTabs <- tabs
         tabs
 
@@ -1254,6 +1445,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             | :? IDisposable as d -> d.Dispose()
             | _ -> ()
         dispose canvasView
+        dispose hmiDesigner
         dispose tableView
         dispose treeView
         dispose propertyView
@@ -1432,8 +1624,29 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             | "Kind" | "Action" | "Enabled" | "Visible" | "Name" | "Device" | "MonitorDevice" | "Min" | "Max" ->
                 for c in canvases () do
                     c.RebuildOne vm
+                // 그 요소를 연결한 터치스크린 부품도 이름·주소·범위를 다시 읽어야 한다.
+                for c in hmiCanvases () do
+                    c.Rebuild()
                 refreshValues ()
             | _ -> ())
+
+    // 부품이 늘거나 줄면 터치스크린을 다시 만든다.
+    state.HmiStructureChanged.Add(fun () ->
+        for c in hmiCanvases () do
+            c.Rebuild()
+        refreshValues ()
+        updateTitle ())
+
+    state.HmiPartChanged.Add(fun (vm, prop) ->
+        match prop with
+        // 위치/크기는 옮기는 동안 계속 들어오므로 다시 만들지 않고 자리만 옮긴다.
+        | "X" | "Y" | "Width" | "Height" ->
+            for c in hmiCanvases () do
+                c.UpdateBounds vm
+        | _ ->
+            for c in hmiCanvases () do
+                c.RebuildOne vm
+            refreshValues ())
 
     // ---------- 단축키 ----------
     win.KeyDown.Add(fun e ->
@@ -1473,21 +1686,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             e.Handled <- true
         | Key.Left | Key.Right | Key.Up | Key.Down when layoutMode ->
             // 입력칸에 글자를 쓰는 중이면 방향키를 가로채지 않는다.
-            let editing =
-                match win.FocusManager with
-                | null -> false
-                | fm ->
-                    let rec isEditor (v: Visual) =
-                        if isNull v then false
-                        else
-                            match v with
-                            | :? TextBox -> true
-                            | :? NumericUpDown -> true
-                            | _ -> isEditor (v.GetVisualParent())
-                    match fm.GetFocusedElement() with
-                    | :? Visual as focused -> isEditor focused
-                    | _ -> false
-            if not editing then
+            if not (isEditingText ()) then
                 let step = if e.KeyModifiers.HasFlag KeyModifiers.Shift then 10 else 1
                 (match e.Key with
                  | Key.Left -> nudge -step 0
@@ -1497,8 +1696,14 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                  | _ -> ())
                 e.Handled <- true
         | Key.Delete ->
-            deleteSelection ()
-            e.Handled <- true
+            // 입력칸에 글자를 쓰는 중이면 지우기 명령으로 삼지 않는다.
+            if not (isEditingText ()) then
+                // HMI 탭에서는 고른 터치스크린 부품을 지운다. 화면 요소를 지우면 안 된다.
+                let onHmiTab = not (isNull documentTabs) && documentTabs.SelectedIndex = 2
+                match (if onHmiTab then state.HmiSelected else None) with
+                | Some part -> state.RemovePart part |> ignore
+                | None -> deleteSelection ()
+                e.Handled <- true
         | Key.F5 ->
             (if connected then disconnect () else connect ())
             e.Handled <- true
@@ -1510,6 +1715,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     win.Closing.Add(fun _ ->
         persistSettings ()
         closeMonitorWindow ()
+        closeHmiWindow ()
         plc.Disconnect())
 
     // ---------- 첫 로드 ----------

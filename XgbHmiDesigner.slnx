@@ -9,5 +9,6 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/ShotHarness/ShotHarness.fsproj" />
+    <Project Path="tools/FakePlc/FakePlc.fsproj" />
   </Folder>
 </Solution>
