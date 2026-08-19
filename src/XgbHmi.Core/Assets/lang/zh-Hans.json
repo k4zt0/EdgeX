@@ -123,6 +123,7 @@
   "type.switch": "开关",
   "type.lamp": "指示灯",
   "type.switchLamp": "开关/指示灯",
+  "type.masterSwitch": "总控开关",
   "type.numInput": "数值输入",
   "type.numDisplay": "数值显示",
   "type.text": "文本",
@@ -160,5 +161,9 @@
   "cmd.undo": "撤销",
   "cmd.redo": "重做",
   "cmd.fitToWindow": "适应窗口",
-  "screen.size": "画面大小"
+  "screen.size": "画面大小",
+  "master.target": "目标",
+  "master.running": "执行中",
+  "master.displayOnly": "仅显示",
+  "master.noTarget": "无目标"
 }

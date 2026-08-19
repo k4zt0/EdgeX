@@ -123,6 +123,7 @@
   "type.switch": "สวิตช์",
   "type.lamp": "หลอดไฟ",
   "type.switchLamp": "สวิตช์/หลอดไฟ",
+  "type.masterSwitch": "สวิตช์รวม",
   "type.numInput": "ป้อนตัวเลข",
   "type.numDisplay": "แสดงตัวเลข",
   "type.text": "ข้อความ",
@@ -160,5 +161,9 @@
   "cmd.undo": "เลิกทำ",
   "cmd.redo": "ทำซ้ำ",
   "cmd.fitToWindow": "พอดีหน้าต่าง",
-  "screen.size": "ขนาดหน้าจอ"
+  "screen.size": "ขนาดหน้าจอ",
+  "master.target": "เป้าหมาย",
+  "master.running": "กำลังทำงาน",
+  "master.displayOnly": "แสดงอย่างเดียว",
+  "master.noTarget": "ไม่มีเป้าหมาย"
 }

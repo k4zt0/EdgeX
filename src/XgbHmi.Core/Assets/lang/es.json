@@ -123,6 +123,7 @@
   "type.switch": "Pulsador",
   "type.lamp": "Piloto",
   "type.switchLamp": "Pulsador/Piloto",
+  "type.masterSwitch": "Interruptor maestro",
   "type.numInput": "Entrada numérica",
   "type.numDisplay": "Visor numérico",
   "type.text": "Texto",
@@ -160,5 +161,9 @@
   "cmd.undo": "Deshacer",
   "cmd.redo": "Rehacer",
   "cmd.fitToWindow": "Ajustar a la ventana",
-  "screen.size": "Tamaño de pantalla"
+  "screen.size": "Tamaño de pantalla",
+  "master.target": "Destino",
+  "master.running": "En curso",
+  "master.displayOnly": "Solo lectura",
+  "master.noTarget": "Sin destino"
 }

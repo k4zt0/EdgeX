@@ -123,6 +123,7 @@
   "type.switch": "Sakelar",
   "type.lamp": "Lampu",
   "type.switchLamp": "Sakelar/Lampu",
+  "type.masterSwitch": "Sakelar utama",
   "type.numInput": "Input angka",
   "type.numDisplay": "Tampilan angka",
   "type.text": "Teks",
@@ -160,5 +161,9 @@
   "cmd.undo": "Urungkan",
   "cmd.redo": "Ulangi",
   "cmd.fitToWindow": "Paskan ke jendela",
-  "screen.size": "Ukuran layar"
+  "screen.size": "Ukuran layar",
+  "master.target": "Target",
+  "master.running": "Berjalan",
+  "master.displayOnly": "Hanya tampilan",
+  "master.noTarget": "Tanpa target"
 }

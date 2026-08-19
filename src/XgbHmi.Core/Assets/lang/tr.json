@@ -123,6 +123,7 @@
   "type.switch": "Buton",
   "type.lamp": "Lamba",
   "type.switchLamp": "Buton/Lamba",
+  "type.masterSwitch": "Ana anahtar",
   "type.numInput": "Sayı girişi",
   "type.numDisplay": "Sayı göstergesi",
   "type.text": "Metin",
@@ -160,5 +161,9 @@
   "cmd.undo": "Geri al",
   "cmd.redo": "Yinele",
   "cmd.fitToWindow": "Pencereye sığdır",
-  "screen.size": "Ekran boyutu"
+  "screen.size": "Ekran boyutu",
+  "master.target": "Hedef",
+  "master.running": "Çalışıyor",
+  "master.displayOnly": "Yalnızca gösterim",
+  "master.noTarget": "Hedef yok"
 }

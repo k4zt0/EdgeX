@@ -123,6 +123,7 @@
   "type.switch": "Tlačítko",
   "type.lamp": "Kontrolka",
   "type.switchLamp": "Tlačítko/Kontrolka",
+  "type.masterSwitch": "Hlavní spínač",
   "type.numInput": "Zadání čísla",
   "type.numDisplay": "Zobrazení čísla",
   "type.text": "Text",
@@ -160,5 +161,9 @@
   "cmd.undo": "Zpět",
   "cmd.redo": "Znovu",
   "cmd.fitToWindow": "Přizpůsobit oknu",
-  "screen.size": "Velikost obrazovky"
+  "screen.size": "Velikost obrazovky",
+  "master.target": "Cíl",
+  "master.running": "Probíhá",
+  "master.displayOnly": "Jen zobrazení",
+  "master.noTarget": "Bez cíle"
 }

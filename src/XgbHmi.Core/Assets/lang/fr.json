@@ -123,6 +123,7 @@
   "type.switch": "Bouton",
   "type.lamp": "Voyant",
   "type.switchLamp": "Bouton/Voyant",
+  "type.masterSwitch": "Commutateur central",
   "type.numInput": "Saisie numérique",
   "type.numDisplay": "Affichage numérique",
   "type.text": "Texte",
@@ -160,5 +161,9 @@
   "cmd.undo": "Annuler",
   "cmd.redo": "Rétablir",
   "cmd.fitToWindow": "Ajuster à la fenêtre",
-  "screen.size": "Taille de l'écran"
+  "screen.size": "Taille de l'écran",
+  "master.target": "Cible",
+  "master.running": "En cours",
+  "master.displayOnly": "Affichage seul",
+  "master.noTarget": "Aucune cible"
 }

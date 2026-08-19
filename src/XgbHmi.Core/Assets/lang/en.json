@@ -123,6 +123,7 @@
   "type.switch": "Switch",
   "type.lamp": "Lamp",
   "type.switchLamp": "Switch/Lamp",
+  "type.masterSwitch": "Master Switch",
   "type.numInput": "Numeric Input",
   "type.numDisplay": "Numeric Display",
   "type.text": "Text",
@@ -160,5 +161,9 @@
   "cmd.undo": "Undo",
   "cmd.redo": "Redo",
   "cmd.fitToWindow": "Fit to Window",
-  "screen.size": "Screen size"
+  "screen.size": "Screen size",
+  "master.target": "Target",
+  "master.running": "Running",
+  "master.displayOnly": "Display only",
+  "master.noTarget": "No target"
 }

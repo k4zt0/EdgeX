@@ -143,6 +143,7 @@ module I18n =
         | Switch -> t "type.switch"
         | Lamp -> t "type.lamp"
         | SwitchLamp -> t "type.switchLamp"
+        | MasterSwitch -> t "type.masterSwitch"
         | NumInput -> t "type.numInput"
         | NumDisplay -> t "type.numDisplay"
         | Text -> t "type.text"

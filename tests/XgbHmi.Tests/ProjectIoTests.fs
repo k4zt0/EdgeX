@@ -247,3 +247,35 @@ let ``없앤 ON_OFF 동작은 토글로 읽고 목록에는 없다`` () =
     Assert.Equal(Toggle, SwitchAction.parse "ON/OFF")
     Assert.Equal<SwitchAction list>([ Toggle; On; Off; Momentary ], SwitchAction.all)
     Assert.DoesNotContain("ON/OFF", SwitchAction.codes)
+
+[<Fact>]
+let ``통합 스위치는 제 주소 없이도 통과하고 저장된다`` () =
+    let path = tempFile ()
+    try
+        let item = { Item.create MasterSwitch with Name = "통합 조작" }
+        Assert.Equal("MASTER_SWITCH", item.Kind.Code)
+        Assert.Equal("", item.Device)
+        // 대상 요소의 주소를 빌려 쓰므로 제 주소는 검사하지 않는다.
+        match Item.validate item with
+        | Ok() -> ()
+        | Error m -> failwith m
+        Assert.False(ItemKind.isBit MasterSwitch)
+        Assert.False(ItemKind.isWord MasterSwitch)
+        Assert.False(ItemKind.hasAction MasterSwitch)
+
+        ProjectIo.save path { Project.empty with Items = [ item ] }
+        let back = (ProjectIo.load path).Items.Head
+        Assert.Equal(MasterSwitch, back.Kind)
+        Assert.Equal("통합 조작", back.Name)
+    finally
+        if File.Exists path then File.Delete path
+
+[<Fact>]
+let ``통합 스위치는 폴링 주소를 만들지 않는다`` () =
+    let items =
+        [ { Item.create Switch with Device = "M1000"; MonitorDevice = "P00120" }
+          { Item.create MasterSwitch with Name = "통합 조작" }
+          { Item.create NumDisplay with Device = "D100" } ]
+    let bits, words = Project.scanAddresses items
+    Assert.Equal<string list>([ "M1000"; "P00120" ], bits)
+    Assert.Equal<string list>([ "D100" ], words)

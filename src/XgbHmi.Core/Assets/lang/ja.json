@@ -123,6 +123,7 @@
   "type.switch": "スイッチ",
   "type.lamp": "ランプ",
   "type.switchLamp": "スイッチ/ランプ",
+  "type.masterSwitch": "統合スイッチ",
   "type.numInput": "数値入力",
   "type.numDisplay": "数値表示",
   "type.text": "テキスト",
@@ -160,5 +161,9 @@
   "cmd.undo": "元に戻す",
   "cmd.redo": "やり直し",
   "cmd.fitToWindow": "ウィンドウに合わせる",
-  "screen.size": "画面サイズ"
+  "screen.size": "画面サイズ",
+  "master.target": "対象",
+  "master.running": "実行中",
+  "master.displayOnly": "表示専用",
+  "master.noTarget": "対象なし"
 }

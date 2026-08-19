@@ -123,6 +123,7 @@
   "type.switch": "Przycisk",
   "type.lamp": "Lampka",
   "type.switchLamp": "Przycisk/Lampka",
+  "type.masterSwitch": "Przełącznik główny",
   "type.numInput": "Wprowadzanie liczby",
   "type.numDisplay": "Wyświetlanie liczby",
   "type.text": "Tekst",
@@ -160,5 +161,9 @@
   "cmd.undo": "Cofnij",
   "cmd.redo": "Ponów",
   "cmd.fitToWindow": "Dopasuj do okna",
-  "screen.size": "Rozmiar ekranu"
+  "screen.size": "Rozmiar ekranu",
+  "master.target": "Cel",
+  "master.running": "W toku",
+  "master.displayOnly": "Tylko podgląd",
+  "master.noTarget": "Brak celu"
 }

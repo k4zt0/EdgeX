@@ -123,6 +123,7 @@
   "type.switch": "스위치",
   "type.lamp": "램프",
   "type.switchLamp": "스위치/램프",
+  "type.masterSwitch": "통합 스위치",
   "type.numInput": "숫자입력",
   "type.numDisplay": "숫자표시",
   "type.text": "텍스트",
@@ -160,5 +161,9 @@
   "cmd.undo": "실행 취소",
   "cmd.redo": "다시 실행",
   "cmd.fitToWindow": "창에 맞추기",
-  "screen.size": "화면 크기"
+  "screen.size": "화면 크기",
+  "master.target": "대상",
+  "master.running": "실행 중",
+  "master.displayOnly": "표시 전용",
+  "master.noTarget": "대상 없음"
 }

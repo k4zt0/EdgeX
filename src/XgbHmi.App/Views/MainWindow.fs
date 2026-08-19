@@ -51,6 +51,8 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     let mutable connected = false
     /// PLC 통신 전체가 오류 상태인지. 운전 화면의 모든 카드를 빨간색으로 점등하는 데 쓴다.
     let mutable commFault = false
+    /// 지금 돌고 있거나 방금 끝난 조작. 통합 스위치가 이걸 보여 준다.
+    let mutable currentOp: CardFactory.RunningOp option = None
     let mutable showProjectPanel = true
     let mutable showPropertyPanel = true
     let mutable showOutputPanel = true
@@ -170,7 +172,29 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             canvasView.RefreshValues
                 { BitOf = (fun addr -> plc.TryBit addr)
                   WordOf = (fun addr -> plc.TryWord addr)
-                  CommFault = commFault }
+                  CommFault = commFault
+                  Operation = currentOp }
+
+    /// 조작을 시작했다고 알린다. (통합 스위치에 '실행 중' 으로 뜬다)
+    let beginOp (vm: ElementVm) (action: string) =
+        currentOp <-
+            Some
+                { Name = (if String.IsNullOrWhiteSpace vm.Name then vm.Device else vm.Name)
+                  Device = vm.Device
+                  Action = action
+                  Phase = CardFactory.OpRunning
+                  Message = "" }
+        refreshValues ()
+
+    /// 조작이 끝났다고 알린다. 결과는 초록/빨강으로 남는다.
+    let endOp (ok: bool) (message: string) =
+        currentOp <-
+            currentOp
+            |> Option.map (fun op ->
+                { op with
+                    Phase = (if ok then CardFactory.OpOk else CardFactory.OpFailed)
+                    Message = message })
+        refreshValues ()
 
     // ---------- 프로젝트 입출력 ----------
     let loadProjectFrom (path: string) =
@@ -230,13 +254,14 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     let writeBit (vm: ElementVm) (value: bool) =
         let device = vm.Device
         let started = DateTime.Now
+        beginOp vm (onOff value)
         Task.Run(fun () ->
             match plc.WriteBitVerified(device, value) with
             | Ok readback ->
                 let elapsed = (DateTime.Now - started).TotalMilliseconds
                 onUi (fun () ->
                     vm.Fault <- None
-                    refreshValues ()
+                    endOp true ""
                     let rbText =
                         match readback with
                         | Some rb -> sprintf "  READBACK=%s" (onOff rb)
@@ -255,7 +280,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             | Error message ->
                 onUi (fun () ->
                     vm.Fault <- Some message
-                    refreshValues ()
+                    endOp false message
                     log Failure (sprintf "BIT WRITE ERROR %s (%s) <- %s  %.0f ms : %s" device (xgtName device) (onOff value) (DateTime.Now - started).TotalMilliseconds message)
                     Dialogs.error win (I18n.tf "msg.writeFailed" [| box device; box message |]) |> ignore))
         |> ignore
@@ -264,6 +289,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     let toggleBit (vm: ElementVm) =
         let device = vm.Device
         let started = DateTime.Now
+        beginOp vm (I18n.actionLabel Toggle)
         Task.Run(fun () ->
             match plc.ReadBitNow device with
             | Ok current ->
@@ -275,7 +301,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                     let elapsed = (DateTime.Now - started).TotalMilliseconds
                     onUi (fun () ->
                         vm.Fault <- None
-                        refreshValues ()
+                        endOp true ""
                         let rbText =
                             match readback with
                             | Some rb -> sprintf "  READBACK=%s" (onOff rb)
@@ -288,13 +314,13 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                 | Error message ->
                     onUi (fun () ->
                         vm.Fault <- Some message
-                        refreshValues ()
+                        endOp false message
                         log Failure (sprintf "BIT WRITE ERROR %s (%s): %s" device (xgtName device) message)
                         Dialogs.error win (I18n.tf "msg.writeFailed" [| box device; box message |]) |> ignore)
             | Error message ->
                 onUi (fun () ->
                     vm.Fault <- Some message
-                    refreshValues ()
+                    endOp false message
                     log Failure (sprintf "TOGGLE READ ERROR %s (%s): %s" device (xgtName device) message)
                     Dialogs.error win (I18n.tf "msg.toggleReadFailed" [| box device; box message |]) |> ignore))
         |> ignore
@@ -303,13 +329,14 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
         let device = vm.Device
         let raw = uint16 (entered &&& 0xFFFF)
         let started = DateTime.Now
+        beginOp vm (I18n.t "btn.write")
         Task.Run(fun () ->
             match plc.WriteWordVerified(device, raw) with
             | Ok readback ->
                 let elapsed = (DateTime.Now - started).TotalMilliseconds
                 onUi (fun () ->
                     vm.Fault <- None
-                    refreshValues ()
+                    endOp true ""
                     log Success (
                         sprintf
                             "WORD WRITE %s (%s) <- %d (0x%04X)  READBACK=%d (0x%04X, signed %d)  %.0f ms  [%s]"
@@ -317,7 +344,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             | Error message ->
                 onUi (fun () ->
                     vm.Fault <- Some message
-                    refreshValues ()
+                    endOp false message
                     log Failure (sprintf "WORD WRITE ERROR %s (%s) <- %d: %s" device (xgtName device) entered message)
                     Dialogs.error win (I18n.tf "msg.writeFailed" [| box device; box message |]) |> ignore))
         |> ignore
@@ -329,6 +356,12 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
           MomentaryDown = fun vm -> if ensureCanWrite () then writeBit vm true
           MomentaryUp = fun vm -> if canWriteSilently () then writeBit vm false
           NumericWrite = fun vm value -> if ensureCanWrite () then writeWord vm value
+          // 통합 스위치가 고를 수 있는 대상: 주소가 있는 요소 전부
+          Targets =
+            fun () ->
+                state.Elements
+                |> Seq.filter (fun e -> e.Enabled && e.Kind <> MasterSwitch && not (String.IsNullOrWhiteSpace e.Device))
+                |> List.ofSeq
           IsInteractive = fun () -> not layoutMode }
 
     // ---------- 연결 ----------
@@ -348,6 +381,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
 
     /// 지난 통신 오류 점등을 모두 끈다. (연결/해제할 때)
     let clearFaults () =
+        currentOp <- None
         for e in state.Elements do
             e.Fault <- None
 

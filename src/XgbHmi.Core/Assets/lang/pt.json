@@ -123,6 +123,7 @@
   "type.switch": "Botão",
   "type.lamp": "Sinaleiro",
   "type.switchLamp": "Botão/Sinaleiro",
+  "type.masterSwitch": "Interruptor mestre",
   "type.numInput": "Entrada numérica",
   "type.numDisplay": "Indicador numérico",
   "type.text": "Texto",
@@ -160,5 +161,9 @@
   "cmd.undo": "Desfazer",
   "cmd.redo": "Refazer",
   "cmd.fitToWindow": "Ajustar à janela",
-  "screen.size": "Tamanho da tela"
+  "screen.size": "Tamanho da tela",
+  "master.target": "Alvo",
+  "master.running": "Em execução",
+  "master.displayOnly": "Somente exibição",
+  "master.noTarget": "Sem alvo"
 }

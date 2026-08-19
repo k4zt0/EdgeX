@@ -12,6 +12,21 @@ open XgbHmi.Core
 open XgbHmi.App.Themes
 open XgbHmi.App.ViewModels
 
+/// 조작 한 건이 지금 어느 단계인지
+type OpPhase =
+    | OpRunning
+    | OpOk
+    | OpFailed
+
+/// 방금 수행했거나 수행 중인 조작. 통합 스위치가 이걸 보여 준다.
+type RunningOp =
+    { Name: string
+      Device: string
+      /// 토글 / ON / OFF / 순간 / 쓰기
+      Action: string
+      Phase: OpPhase
+      Message: string }
+
 /// 카드에서 나오는 조작을 화면 쪽으로 넘기는 통로
 type CardCallbacks =
     { Toggle: ElementVm -> unit
@@ -20,6 +35,8 @@ type CardCallbacks =
       MomentaryDown: ElementVm -> unit
       MomentaryUp: ElementVm -> unit
       NumericWrite: ElementVm -> int -> unit
+      /// 통합 스위치가 고를 수 있는 대상. 화면 편집에 있는 요소 전부다.
+      Targets: unit -> ElementVm list
       /// 배치 편집 중이면 false. PLC로 명령을 보내지 않는다.
       IsInteractive: unit -> bool }
 
@@ -28,7 +45,9 @@ type RuntimeStatus =
     { BitOf: string -> bool option
       WordOf: string -> uint16 option
       /// PLC 통신 자체가 오류면 모든 카드를 빨간색으로 점등한다.
-      CommFault: bool }
+      CommFault: bool
+      /// 화면 어디에서든 조작이 돌고 있으면 그 내용. 통합 스위치가 보여 준다.
+      Operation: RunningOp option }
 
 /// 캔버스에 올라간 카드 하나
 type RuntimeCard =
@@ -40,7 +59,8 @@ type RuntimeCard =
 let private kindColor (p: Palette) (kind: ItemKind) =
     match kind with
     | Switch
-    | SwitchLamp -> p.KindSwitch
+    | SwitchLamp
+    | MasterSwitch -> p.KindSwitch
     | Lamp -> p.KindLamp
     | NumInput
     | NumDisplay -> p.KindNumeric
@@ -56,6 +76,12 @@ let private textOnLight (hex: string) =
     let c = Color.Parse hex
     let luma = (0.299 * float c.R + 0.587 * float c.G + 0.114 * float c.B) / 255.0
     if luma > 0.62 then "#101318" else "#FFFFFF"
+
+/// 통합 스위치의 대상 목록에 보여 줄 이름표
+let private targetLabel (t: ElementVm) =
+    let dev = if String.IsNullOrWhiteSpace t.Device then "-" else t.Device
+    let name = if String.IsNullOrWhiteSpace t.Name then "(no name)" else t.Name
+    sprintf "%s  ·  %s" name dev
 
 /// 카드 한 장을 만든다.
 let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
@@ -133,6 +159,14 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
     let mutable lampHolder: Border = null
     /// 순간 스위치를 누르고 있는 동안은 PLC 응답을 기다리지 않고 바로 점등한다.
     let held = ref false
+    /// 통합 스위치가 지금 겨누고 있는 대상과, 고를 수 있는 목록
+    let target = ref (None: ElementVm option)
+    let targetList = ref ([]: ElementVm list)
+    /// 마지막으로 받은 상태. 대상을 바꿨을 때 스캔을 기다리지 않고 바로 다시 그리려고 쥐고 있는다.
+    let lastStatus = ref (None: RuntimeStatus option)
+    let redraw = ref (fun () -> ())
+    let mutable targetBox: ComboBox = null
+    let mutable targetValue: NumericUpDown = null
 
     let makeLamp (b: Button) =
         Border(CornerRadius = CornerRadius 5.0, Background = Brushes.Transparent, Child = b)
@@ -263,6 +297,122 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
         Grid.SetRowSpan(holder, 3)
         layout.Children.Add holder
 
+    | MasterSwitch ->
+        // 대상 고르기 → 상태 램프 → 조작 버튼. 화면에 있는 요소를 이 한 장으로 모두 다룬다.
+        let targets = cb.Targets()
+        targetList.Value <- targets
+        target.Value <- List.tryHead targets
+
+        let combo =
+            ComboBox(
+                ItemsSource = (targets |> List.map targetLabel |> List.toArray),
+                SelectedIndex = (if targets.IsEmpty then -1 else 0),
+                PlaceholderText = I18n.t "master.noTarget",
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Margin = Thickness(0.0, 5.0, 0.0, 0.0),
+                MinHeight = 28.0,
+                FontFamily = Ui.uiFont
+            )
+        targetBox <- combo
+        Grid.SetRow(combo, 1)
+        layout.Children.Add combo
+
+        let holder, dot, text = makeIndicator ()
+        bigValue <- text
+        lampDot <- dot
+        lampHolder <- holder
+        Grid.SetRow(holder, 2)
+        layout.Children.Add holder
+
+        // WORD 대상일 때만 쓰는 값 입력칸
+        let value =
+            NumericUpDown(
+                Minimum = -32768m,
+                Maximum = 65535m,
+                Value = 0m,
+                Increment = 1m,
+                FormatString = "0",
+                FontFamily = Ui.monoFont,
+                FontWeight = FontWeight.Bold,
+                Margin = Thickness(0.0, 5.0, 0.0, 0.0),
+                MinHeight = 28.0,
+                IsVisible = false
+            )
+        targetValue <- value
+
+        let b = Ui.button (I18n.t "action.toggle") [ "hmi" ] (fun () -> ())
+        b.MinHeight <- 30.0
+        b.VerticalAlignment <- VerticalAlignment.Stretch
+        let host = makeLamp b
+        host.Margin <- Thickness(0.0, 5.0, 0.0, 0.0)
+        let lamp = Some(host, b)
+        actionLamp <- lamp
+
+        /// 고른 대상의 동작을 그대로 수행한다. 순간 스위치는 누름/뗌을 나눠 보낸다.
+        let run () =
+            match target.Value with
+            | Some t when interactive () ->
+                match t.Kind with
+                | Switch
+                | SwitchLamp ->
+                    match t.Action with
+                    | Toggle -> cb.Toggle t
+                    | On -> cb.WriteOn t
+                    | Off -> cb.WriteOff t
+                    | Momentary -> ()
+                | NumInput -> cb.NumericWrite t (if value.Value.HasValue then int value.Value.Value else 0)
+                | _ -> ()
+            | _ -> ()
+
+        b.Click.Add(fun _ -> run ())
+
+        // 순간 동작 대상은 누르는 동안만 ON 이어야 하므로 눌림/뗌을 직접 받는다.
+        let momentaryTarget () =
+            match target.Value with
+            | Some t when t.Action = Momentary && (t.Kind = Switch || t.Kind = SwitchLamp) -> Some t
+            | _ -> None
+        let release () =
+            if held.Value then
+                held.Value <- false
+                light lamp None
+                match momentaryTarget () with
+                | Some t when interactive () -> cb.MomentaryUp t
+                | _ -> ()
+        b.AddHandler(
+            InputElement.PointerPressedEvent,
+            (fun _ (e: PointerPressedEventArgs) ->
+                match momentaryTarget () with
+                | Some t when interactive () && e.GetCurrentPoint(b).Properties.IsLeftButtonPressed ->
+                    held.Value <- true
+                    light lamp (Some p.On)
+                    cb.MomentaryDown t
+                | _ -> ()),
+            Interactivity.RoutingStrategies.Tunnel
+        )
+        b.AddHandler(
+            InputElement.PointerReleasedEvent,
+            (fun _ (_: PointerReleasedEventArgs) -> release ()),
+            Interactivity.RoutingStrategies.Tunnel
+        )
+        b.PointerExited.Add(fun _ -> release ())
+
+        combo.SelectionChanged.Add(fun _ ->
+            let list = targetList.Value
+            let i = combo.SelectedIndex
+            target.Value <- (if i >= 0 && i < list.Length then Some list.[i] else None)
+            // 다음 스캔을 기다리지 않고 고른 대상의 상태를 바로 보여 준다.
+            redraw.Value ())
+
+        let g = Grid()
+        g.RowDefinitions.Add(RowDefinition(GridLength.Auto))
+        g.RowDefinitions.Add(RowDefinition(GridLength(1.0, GridUnitType.Star)))
+        Grid.SetRow(value, 0)
+        Grid.SetRow(host, 1)
+        g.Children.Add value
+        g.Children.Add host
+        Grid.SetRow(g, 3)
+        layout.Children.Add g
+
     | NumDisplay ->
         let value = Ui.mono 22.0 (I18n.t "state.unknown")
         value.HorizontalAlignment <- HorizontalAlignment.Center
@@ -371,6 +521,16 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
         | Off -> light actionLamp (if isOff then Some p.Off else None)
         | _ -> light actionLamp (if isOn then Some p.On else None)
 
+    /// 램프 표시를 지정한 색과 글자로 켠다.
+    let setLamp (color: string) (glowing: bool) (caption: string) =
+        if not (isNull lampDot) then
+            lampDot.Fill <- Ui.brush color
+            lampHolder.Background <- Ui.tint color (if glowing then 0.18 else 0.12)
+            lampHolder.BoxShadow <- (if glowing then lightGlow color 16.0 else BoxShadows())
+            if not (isNull bigValue) then
+                bigValue.Text <- caption
+                bigValue.Foreground <- Ui.brush (if glowing then color else p.TextMuted)
+
     /// 램프 표시를 현재 값으로 맞춘다.
     let showLamp (live: bool option) =
         if not (isNull lampDot) then
@@ -404,6 +564,7 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
 
     // ---- PLC 값 반영 ----
     let refresh (status: RuntimeStatus) =
+        lastStatus.Value <- Some status
         let bitOf = status.BitOf
         let wordOf = status.WordOf
         match vm.Kind with
@@ -448,6 +609,94 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
 
         | Lamp -> showLamp (bitOf vm.Device)
 
+        | MasterSwitch ->
+            // 화면 편집에서 요소가 늘거나 이름이 바뀌면 목록도 따라간다. 고르던 대상은 그대로 둔다.
+            let latest = cb.Targets()
+            if (latest |> List.map targetLabel) <> (targetList.Value |> List.map targetLabel) then
+                let keep =
+                    target.Value
+                    |> Option.bind (fun t -> latest |> List.tryFindIndex (fun x -> x.Id = t.Id))
+                targetList.Value <- latest
+                if not (isNull targetBox) then
+                    targetBox.ItemsSource <- latest |> List.map targetLabel |> List.toArray
+                    targetBox.SelectedIndex <-
+                        match keep with
+                        | Some i -> i
+                        | None -> if latest.IsEmpty then -1 else 0
+
+            // 대상에 맞춰 버튼 글자와 값 입력칸을 바꾼다.
+            let operable =
+                match target.Value with
+                | Some t ->
+                    match t.Kind with
+                    | Switch
+                    | SwitchLamp -> true
+                    | NumInput -> true
+                    | _ -> false
+                | None -> false
+            (match actionLamp with
+             | Some(_, b) ->
+                 b.Content <-
+                     match target.Value with
+                     | None -> I18n.t "master.noTarget"
+                     | Some t ->
+                         match t.Kind with
+                         | Switch
+                         | SwitchLamp -> I18n.actionLabel t.Action
+                         | NumInput -> I18n.t "btn.write"
+                         | _ -> I18n.t "master.displayOnly"
+                 b.IsEnabled <- operable
+             | None -> ())
+            if not (isNull targetValue) then
+                targetValue.IsVisible <- (match target.Value with
+                                          | Some t -> t.Kind = NumInput
+                                          | None -> false)
+
+            // 조작이 돌고 있으면 그 내용을, 아니면 겨누고 있는 대상의 현재 값을 보여 준다.
+            match status.Operation with
+            | Some op ->
+                // 도는 중이거나 잘 끝났으면 초록, 제대로 안 됐으면 빨강.
+                let color = if op.Phase = OpFailed then p.Error else p.On
+                let caption =
+                    match op.Phase with
+                    | OpRunning -> sprintf "%s · %s · %s" (I18n.t "master.running") op.Name op.Action
+                    | OpOk -> sprintf "%s · %s" op.Name op.Action
+                    | OpFailed -> sprintf "%s · %s" op.Name (I18n.t "state.fault")
+                setLamp color true caption
+                light actionLamp (Some color)
+                ToolTip.SetTip(root, (if String.IsNullOrWhiteSpace op.Message then null else box op.Message))
+            | None ->
+                match target.Value with
+                | None ->
+                    setLamp p.Off false (I18n.t "master.noTarget")
+                    light actionLamp None
+                | Some t ->
+                    if ItemKind.isWord t.Kind then
+                        match wordOf t.Device with
+                        | Some w ->
+                            setLamp p.KindNumeric true (sprintf "%s = %d" t.Device (int16 w))
+                            light actionLamp None
+                        | None ->
+                            setLamp p.Off false (t.Device + " " + I18n.t "state.unknown")
+                            light actionLamp None
+                    else
+                        let live =
+                            if String.IsNullOrWhiteSpace t.MonitorDevice then bitOf t.Device
+                            else
+                                match bitOf t.MonitorDevice with
+                                | Some v -> Some v
+                                | None -> bitOf t.Device
+                        match live with
+                        | Some true ->
+                            setLamp p.On true (t.Name + " · " + I18n.t "state.on")
+                            light actionLamp (Some p.On)
+                        | Some false ->
+                            setLamp p.Off false (t.Name + " · " + I18n.t "state.off")
+                            light actionLamp None
+                        | None ->
+                            setLamp p.Off false (t.Name + " · " + I18n.t "state.unknown")
+                            light actionLamp None
+
         | NumDisplay ->
             match wordOf vm.Device with
             | Some w ->
@@ -490,7 +739,8 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
             match vm.Kind with
             | Text -> ()
             | Lamp -> showLampFault ()
-            | SwitchLamp ->
+            | SwitchLamp
+            | MasterSwitch ->
                 showLampFault ()
                 light actionLamp (Some p.Error)
             | Switch ->
@@ -512,5 +762,7 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
                 statePill.Background <- Ui.tint p.Error 0.22
                 statePill.BoxShadow <- lightGlow p.Error 14.0
                 light actionLamp (Some p.Error)
+
+    redraw.Value <- fun () -> lastStatus.Value |> Option.iter refresh
 
     { Vm = vm; Root = root; Refresh = refresh }

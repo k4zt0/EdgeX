@@ -123,6 +123,7 @@
   "type.switch": "Кнопка",
   "type.lamp": "Лампа",
   "type.switchLamp": "Кнопка/Лампа",
+  "type.masterSwitch": "Общий переключатель",
   "type.numInput": "Ввод числа",
   "type.numDisplay": "Индикатор числа",
   "type.text": "Текст",
@@ -160,5 +161,9 @@
   "cmd.undo": "Отменить",
   "cmd.redo": "Вернуть",
   "cmd.fitToWindow": "Вписать в окно",
-  "screen.size": "Размер экрана"
+  "screen.size": "Размер экрана",
+  "master.target": "Цель",
+  "master.running": "Выполняется",
+  "master.displayOnly": "Только показ",
+  "master.noTarget": "Нет цели"
 }

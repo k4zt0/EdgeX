@@ -123,6 +123,7 @@
   "type.switch": "Schalter",
   "type.lamp": "Lampe",
   "type.switchLamp": "Schalter/Lampe",
+  "type.masterSwitch": "Zentralschalter",
   "type.numInput": "Zahleneingabe",
   "type.numDisplay": "Zahlenanzeige",
   "type.text": "Text",
@@ -160,5 +161,9 @@
   "cmd.undo": "Rückgängig",
   "cmd.redo": "Wiederholen",
   "cmd.fitToWindow": "An Fenster anpassen",
-  "screen.size": "Bildgröße"
+  "screen.size": "Bildgröße",
+  "master.target": "Ziel",
+  "master.running": "Läuft",
+  "master.displayOnly": "Nur Anzeige",
+  "master.noTarget": "Kein Ziel"
 }

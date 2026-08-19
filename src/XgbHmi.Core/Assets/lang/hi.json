@@ -123,6 +123,7 @@
   "type.switch": "स्विच",
   "type.lamp": "लैंप",
   "type.switchLamp": "स्विच/लैंप",
+  "type.masterSwitch": "मास्टर स्विच",
   "type.numInput": "संख्या इनपुट",
   "type.numDisplay": "संख्या प्रदर्शन",
   "type.text": "पाठ",
@@ -160,5 +161,9 @@
   "cmd.undo": "पूर्ववत करें",
   "cmd.redo": "फिर से करें",
   "cmd.fitToWindow": "विंडो में फ़िट करें",
-  "screen.size": "स्क्रीन आकार"
+  "screen.size": "स्क्रीन आकार",
+  "master.target": "लक्ष्य",
+  "master.running": "चल रहा है",
+  "master.displayOnly": "केवल प्रदर्शन",
+  "master.noTarget": "कोई लक्ष्य नहीं"
 }

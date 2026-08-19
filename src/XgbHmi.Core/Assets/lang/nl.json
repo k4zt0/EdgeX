@@ -123,6 +123,7 @@
   "type.switch": "Schakelaar",
   "type.lamp": "Lamp",
   "type.switchLamp": "Schakelaar/Lamp",
+  "type.masterSwitch": "Hoofdschakelaar",
   "type.numInput": "Getalinvoer",
   "type.numDisplay": "Getalweergave",
   "type.text": "Tekst",
@@ -160,5 +161,9 @@
   "cmd.undo": "Ongedaan maken",
   "cmd.redo": "Opnieuw",
   "cmd.fitToWindow": "Aan venster aanpassen",
-  "screen.size": "Schermgrootte"
+  "screen.size": "Schermgrootte",
+  "master.target": "Doel",
+  "master.running": "Bezig",
+  "master.displayOnly": "Alleen weergave",
+  "master.noTarget": "Geen doel"
 }

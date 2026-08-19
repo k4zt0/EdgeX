@@ -123,6 +123,7 @@
   "type.switch": "Pulsante",
   "type.lamp": "Spia",
   "type.switchLamp": "Pulsante/Spia",
+  "type.masterSwitch": "Interruttore principale",
   "type.numInput": "Ingresso numerico",
   "type.numDisplay": "Display numerico",
   "type.text": "Testo",
@@ -160,5 +161,9 @@
   "cmd.undo": "Annulla",
   "cmd.redo": "Ripeti",
   "cmd.fitToWindow": "Adatta alla finestra",
-  "screen.size": "Dimensioni schermata"
+  "screen.size": "Dimensioni schermata",
+  "master.target": "Destinazione",
+  "master.running": "In corso",
+  "master.displayOnly": "Solo visualizzazione",
+  "master.noTarget": "Nessuna destinazione"
 }

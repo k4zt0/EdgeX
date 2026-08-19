@@ -123,6 +123,7 @@
   "type.switch": "Nút",
   "type.lamp": "Đèn",
   "type.switchLamp": "Nút/Đèn",
+  "type.masterSwitch": "Công tắc tổng",
   "type.numInput": "Nhập số",
   "type.numDisplay": "Hiển thị số",
   "type.text": "Văn bản",
@@ -160,5 +161,9 @@
   "cmd.undo": "Hoàn tác",
   "cmd.redo": "Làm lại",
   "cmd.fitToWindow": "Vừa cửa sổ",
-  "screen.size": "Kích thước màn hình"
+  "screen.size": "Kích thước màn hình",
+  "master.target": "Mục tiêu",
+  "master.running": "Đang chạy",
+  "master.displayOnly": "Chỉ hiển thị",
+  "master.noTarget": "Không có mục tiêu"
 }

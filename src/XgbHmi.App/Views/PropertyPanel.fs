@@ -92,7 +92,8 @@ type PropertyPanelView(state: AppState) =
         actionField.IsVisible <- isSwitch
         minField.IsVisible <- isWord
         maxField.IsVisible <- isWord
-        deviceBox.IsEnabled <- vm.Kind <> Text
+        // 텍스트와 통합 스위치는 제 주소를 쓰지 않는다.
+        deviceBox.IsEnabled <- vm.Kind <> Text && vm.Kind <> MasterSwitch
 
     let load () =
         suppress <- true

@@ -8,6 +8,9 @@ type ItemKind =
     | Lamp
     /// 조작 버튼과 램프를 한 장에 합친 것. 누르면서 상태도 함께 본다.
     | SwitchLamp
+    /// 화면에 있는 요소를 골라 모두 조작할 수 있는 스위치 한 개.
+    /// 어떤 조작이 도는지, 잘 됐는지까지 이 한 장에서 본다.
+    | MasterSwitch
     | NumInput
     | NumDisplay
     | Text
@@ -17,6 +20,7 @@ type ItemKind =
         | Switch -> "SWITCH"
         | Lamp -> "LAMP"
         | SwitchLamp -> "SWITCH_LAMP"
+        | MasterSwitch -> "MASTER_SWITCH"
         | NumInput -> "NUM_INPUT"
         | NumDisplay -> "NUM_DISPLAY"
         | Text -> "TEXT"
@@ -26,6 +30,7 @@ type ItemKind =
         | Switch -> "스위치"
         | Lamp -> "램프"
         | SwitchLamp -> "스위치/램프"
+        | MasterSwitch -> "통합 스위치"
         | NumInput -> "숫자입력"
         | NumDisplay -> "숫자표시"
         | Text -> "텍스트"
@@ -33,7 +38,7 @@ type ItemKind =
 [<RequireQualifiedAccess>]
 module ItemKind =
 
-    let all = [ Switch; Lamp; SwitchLamp; NumInput; NumDisplay; Text ]
+    let all = [ Switch; Lamp; SwitchLamp; MasterSwitch; NumInput; NumDisplay; Text ]
 
     let codes = all |> List.map (fun k -> k.Code)
 
@@ -42,6 +47,7 @@ module ItemKind =
         | "SWITCH" -> Some Switch
         | "LAMP" -> Some Lamp
         | "SWITCH_LAMP" -> Some SwitchLamp
+        | "MASTER_SWITCH" -> Some MasterSwitch
         | "NUM_INPUT" -> Some NumInput
         | "NUM_DISPLAY" -> Some NumDisplay
         | "TEXT" -> Some Text
@@ -170,6 +176,14 @@ module Item =
                 Action = Toggle
                 Width = 190
                 Height = 150 }
+        | MasterSwitch ->
+            { empty with
+                Id = newId ()
+                Kind = MasterSwitch
+                Name = "새 통합 스위치"
+                Device = ""
+                Width = 280
+                Height = 200 }
         | NumInput ->
             { empty with
                 Id = newId ()
@@ -216,7 +230,9 @@ module Item =
     let validate (h: HmiItem) : Result<unit, string> =
         let blank (s: string) = String.IsNullOrWhiteSpace s
         match h.Kind with
-        | Text -> Ok()
+        // 통합 스위치는 제 주소가 없고 대상 요소의 주소를 쓴다.
+        | Text
+        | MasterSwitch -> Ok()
         | kind ->
             if blank h.Device then
                 Error(sprintf "'%s'의 디바이스가 비어 있습니다." h.Name)
@@ -240,7 +256,8 @@ module Item =
                     elif h.Min < -32768 || h.Max > 65535 then
                         Error(sprintf "'%s'의 WORD 범위는 -32768 ~ 65535 안에서 설정하십시오." h.Name)
                     else Ok()
-                | Text -> Ok()
+                | Text
+                | MasterSwitch -> Ok()
 
 
 [<RequireQualifiedAccess>]
