@@ -57,6 +57,7 @@
   "prop.section.device": "Device",
   "prop.section.geometry": "Geometry",
   "prop.enabled": "Enabled",
+  "prop.visible": "Show on run screen",
   "prop.type": "Type",
   "prop.name": "Label",
   "prop.device": "Device",

@@ -68,9 +68,11 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     let mutable portBox: NumericUpDown = null
     let mutable cycleBox: NumericUpDown = null
     let mutable connectButton: Button = null
+    let mutable disconnectButton: Button = null
     let mutable writeToggle: ToggleButton = null
     let mutable zoomLabel: TextBlock = null
     let mutable layoutModeItem: MenuItem = null
+    let mutable documentTabs: TabControl = null
     let mutable layoutHintText: TextBlock = null
     let mutable layoutHintBar: Border = null
     let mutable logStatsText: TextBlock = null
@@ -383,10 +385,9 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
 
     let setConnectedUi (isConnected: bool) =
         connected <- isConnected
-        if not (isNull connectButton) then
-            connectButton.Content <- (if isConnected then I18n.t "cmd.disconnect" else I18n.t "cmd.connect")
-            connectButton.Classes.Clear()
-            connectButton.Classes.Add(if isConnected then "danger" else "primary")
+        // 연결과 해제를 각각 두고, 지금 할 수 있는 쪽만 켠다.
+        if not (isNull connectButton) then connectButton.IsEnabled <- not isConnected
+        if not (isNull disconnectButton) then disconnectButton.IsEnabled <- isConnected
         if not (isNull ipBox) then ipBox.IsEnabled <- not isConnected
         if not (isNull portBox) then portBox.IsEnabled <- not isConnected
 
@@ -631,10 +632,16 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                 vm.Y <- max 0 (vm.Y + dy)
             state.GrowScreenToFit() |> ignore
 
+    /// 운전 화면에서 추가하면 바로 보이고, 화면 편집에서 추가하면 숨긴 채로 만든다.
+    /// (운전 화면은 통합 스위치만 두고 나머지는 필요할 때 켜서 쓰는 흐름)
+    let addedFromRunScreen () = isNull documentTabs || documentTabs.SelectedIndex = 0
+
     let addElement (kind: ItemKind) =
-        state.AddNew kind |> ignore
+        let vm = state.AddNew kind
+        // 통합 스위치는 어디서 만들든 보인다. 그것 하나로 화면 전체를 보기 때문이다.
+        if kind <> MasterSwitch && not (addedFromRunScreen ()) then vm.Visible <- false
         applyToScreen false |> ignore
-        log Info ("ADD " + kind.Code)
+        log Info (sprintf "ADD %s (%s)" kind.Code (if vm.Visible then "VISIBLE" else "HIDDEN"))
 
     // ---------- 설정 저장 ----------
     let persistSettings () =
@@ -804,8 +811,10 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                 state.CycleMs <- int cycleBox.Value.Value
                 plc.CycleMs <- int cycleBox.Value.Value)
 
-        connectButton <- Ui.button (I18n.t "cmd.connect") [ "primary" ] (fun () -> if connected then disconnect () else connect ())
-        connectButton.MinWidth <- 96.0
+        connectButton <- Ui.button (I18n.t "cmd.connect") [ "primary" ] (fun () -> if not connected then connect ())
+        connectButton.MinWidth <- 88.0
+        disconnectButton <- Ui.button (I18n.t "cmd.disconnect") [ "danger" ] (fun () -> if connected then disconnect ())
+        disconnectButton.MinWidth <- 88.0
 
         writeToggle <-
             Ui.toggleButton (I18n.t "cmd.writeEnable") [ "warn" ] false (fun isChecked ->
@@ -967,6 +976,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                       labelled (I18n.t "conn.port") portBox
                       labelled (I18n.t "conn.cycle") cycleBox
                       connectButton
+                      disconnectButton
                       writeToggle ]
               Ui.vSep ()
               group [ editButton :> Control ]
@@ -1100,6 +1110,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
         let tabs = TabControl(Background = Ui.brush p.Surface)
         tabs.Items.Add runTab |> ignore
         tabs.Items.Add tableTab |> ignore
+        documentTabs <- tabs
         tabs
 
     /// 테마/언어를 바꿀 때 이전 화면이 붙잡고 있던 구독을 모두 끊는다. (누수 방지)
@@ -1284,7 +1295,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
         if not (isNull canvasView) then
             match prop with
             // 카드 구조가 바뀌는 항목: 그 카드만 다시 만든다.
-            | "Kind" | "Action" | "Enabled" | "Name" | "Device" | "MonitorDevice" | "Min" | "Max" ->
+            | "Kind" | "Action" | "Enabled" | "Visible" | "Name" | "Device" | "MonitorDevice" | "Min" | "Max" ->
                 canvasView.RebuildOne vm
                 refreshValues ()
             | _ -> ())

@@ -57,6 +57,7 @@
   "prop.section.device": "Endereço",
   "prop.section.geometry": "Posição e tamanho",
   "prop.enabled": "Ativo",
+  "prop.visible": "Mostrar na tela de operação",
   "prop.type": "Tipo",
   "prop.name": "Rótulo",
   "prop.device": "Endereço",

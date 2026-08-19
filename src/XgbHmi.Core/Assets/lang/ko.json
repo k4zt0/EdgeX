@@ -57,6 +57,7 @@
   "prop.section.device": "디바이스",
   "prop.section.geometry": "위치/크기",
   "prop.enabled": "사용",
+  "prop.visible": "운전 화면 표시",
   "prop.type": "형식",
   "prop.name": "표시 이름",
   "prop.device": "디바이스",

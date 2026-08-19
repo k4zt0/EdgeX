@@ -57,6 +57,7 @@
   "prop.section.device": "แอดเดรส",
   "prop.section.geometry": "ตำแหน่งและขนาด",
   "prop.enabled": "ใช้งาน",
+  "prop.visible": "แสดงบนหน้าจอเดินเครื่อง",
   "prop.type": "ชนิด",
   "prop.name": "ป้ายกำกับ",
   "prop.device": "แอดเดรส",

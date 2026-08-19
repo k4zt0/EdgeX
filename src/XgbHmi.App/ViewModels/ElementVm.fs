@@ -13,6 +13,7 @@ type ElementVm(item: HmiItem) as this =
 
     let mutable id = item.Id
     let mutable enabled = item.Enabled
+    let mutable visible = item.Visible
     let mutable kind = item.Kind
     let mutable name = item.Name
     let mutable device = item.Device
@@ -48,6 +49,15 @@ type ElementVm(item: HmiItem) as this =
                 beforeChange ()
                 enabled <- v
                 raise' "Enabled"
+
+    /// 운전 화면에 카드로 띄울지
+    member _.Visible
+        with get () = visible
+        and set (v: bool) =
+            if visible <> v then
+                beforeChange ()
+                visible <- v
+                raise' "Visible"
 
     member _.Kind
         with get () = kind
@@ -181,6 +191,7 @@ type ElementVm(item: HmiItem) as this =
     member _.ToItem() : HmiItem =
         { Id = id
           Enabled = enabled
+          Visible = visible
           Kind = kind
           Name = name
           Device = device

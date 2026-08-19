@@ -57,6 +57,7 @@
   "prop.section.device": "Adresse",
   "prop.section.geometry": "Position et taille",
   "prop.enabled": "Actif",
+  "prop.visible": "Afficher à l'écran d'exploitation",
   "prop.type": "Type",
   "prop.name": "Libellé",
   "prop.device": "Adresse",

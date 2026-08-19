@@ -57,6 +57,7 @@
   "prop.section.device": "Dirección",
   "prop.section.geometry": "Posición y tamaño",
   "prop.enabled": "Activo",
+  "prop.visible": "Mostrar en pantalla de operación",
   "prop.type": "Tipo",
   "prop.name": "Etiqueta",
   "prop.device": "Dirección",

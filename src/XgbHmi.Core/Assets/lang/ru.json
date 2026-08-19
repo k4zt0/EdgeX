@@ -57,6 +57,7 @@
   "prop.section.device": "Адрес",
   "prop.section.geometry": "Положение и размер",
   "prop.enabled": "Включён",
+  "prop.visible": "Показывать на рабочем экране",
   "prop.type": "Тип",
   "prop.name": "Подпись",
   "prop.device": "Адрес",

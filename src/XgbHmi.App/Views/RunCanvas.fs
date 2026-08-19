@@ -385,6 +385,7 @@ type RunCanvasView(state: AppState, host: CanvasHost) =
                 state.Elements
                 |> Seq.filter (fun e ->
                     e.Enabled
+                    && e.Visible
                     && float e.X < x2
                     && x1 < float (e.X + e.Width)
                     && float e.Y < y2
@@ -574,7 +575,7 @@ type RunCanvasView(state: AppState, host: CanvasHost) =
         screenWidth <- float state.ScreenWidth
         screenHeight <- float state.ScreenHeight
         for e in state.Elements do
-            if e.Enabled then
+            if e.Enabled && e.Visible then
                 let card = CardFactory.create palette e host.Cards
                 Canvas.SetLeft(card.Root, float e.X)
                 Canvas.SetTop(card.Root, float e.Y)
@@ -590,7 +591,7 @@ type RunCanvasView(state: AppState, host: CanvasHost) =
             cardCanvas.Children.Remove old.Root |> ignore
             cards.Remove vm.Id |> ignore
         | _ -> ()
-        if vm.Enabled then
+        if vm.Enabled && vm.Visible then
             let card = CardFactory.create palette vm host.Cards
             Canvas.SetLeft(card.Root, float vm.X)
             Canvas.SetTop(card.Root, float vm.Y)

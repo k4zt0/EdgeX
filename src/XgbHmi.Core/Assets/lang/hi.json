@@ -57,6 +57,7 @@
   "prop.section.device": "पता",
   "prop.section.geometry": "स्थिति और आकार",
   "prop.enabled": "सक्रिय",
+  "prop.visible": "संचालन स्क्रीन पर दिखाएँ",
   "prop.type": "प्रकार",
   "prop.name": "लेबल",
   "prop.device": "पता",

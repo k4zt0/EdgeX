@@ -23,6 +23,7 @@ type PropertyPanelView(state: AppState) =
         t
 
     let enabledBox = CheckBox(Content = I18n.t "prop.enabled", FontFamily = Ui.uiFont)
+    let visibleBox = CheckBox(Content = I18n.t "prop.visible", FontFamily = Ui.uiFont)
     let kindBox = ComboBox(ItemsSource = (ItemKind.all |> List.map I18n.kindLabel |> List.toArray), HorizontalAlignment = HorizontalAlignment.Stretch, FontFamily = Ui.uiFont)
     let nameBox = TextBox(FontFamily = Ui.uiFont)
     let deviceBox = TextBox(FontFamily = Ui.monoFont)
@@ -63,6 +64,7 @@ type PropertyPanelView(state: AppState) =
         Ui.stackV 0.0 [
             sectionTitle (I18n.t "prop.section.general")
             enabledBox :> Control
+            visibleBox :> Control
             Ui.field (I18n.t "prop.type") kindBox :> Control
             Ui.field (I18n.t "prop.name") nameBox :> Control
             sectionTitle (I18n.t "prop.section.device")
@@ -102,6 +104,7 @@ type PropertyPanelView(state: AppState) =
             target <- Some vm
             container.Child <- form
             enabledBox.IsChecked <- vm.Enabled
+            visibleBox.IsChecked <- vm.Visible
             kindBox.SelectedIndex <- vm.KindIndex
             nameBox.Text <- vm.Name
             deviceBox.Text <- vm.Device
@@ -127,6 +130,7 @@ type PropertyPanelView(state: AppState) =
 
     do
         enabledBox.IsCheckedChanged.Add(fun _ -> edit (fun vm -> vm.Enabled <- enabledBox.IsChecked.HasValue && enabledBox.IsChecked.Value))
+        visibleBox.IsCheckedChanged.Add(fun _ -> edit (fun vm -> vm.Visible <- visibleBox.IsChecked.HasValue && visibleBox.IsChecked.Value))
         kindBox.SelectionChanged.Add(fun _ -> edit (fun vm ->
             if kindBox.SelectedIndex >= 0 then
                 vm.KindIndex <- kindBox.SelectedIndex
@@ -158,6 +162,7 @@ type PropertyPanelView(state: AppState) =
                      | "Name" -> (if nameBox.Text <> vm.Name then nameBox.Text <- vm.Name)
                      | "Device" -> (if deviceBox.Text <> vm.Device then deviceBox.Text <- vm.Device)
                      | "Enabled" -> enabledBox.IsChecked <- vm.Enabled
+                     | "Visible" -> visibleBox.IsChecked <- vm.Visible
                      | "Kind" ->
                          kindBox.SelectedIndex <- vm.KindIndex
                          applyKindVisibility vm

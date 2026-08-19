@@ -57,6 +57,7 @@
   "prop.section.device": "Indirizzo",
   "prop.section.geometry": "Posizione e dimensioni",
   "prop.enabled": "Attivo",
+  "prop.visible": "Mostra nella schermata di esercizio",
   "prop.type": "Tipo",
   "prop.name": "Etichetta",
   "prop.device": "Indirizzo",

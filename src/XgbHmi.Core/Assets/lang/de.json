@@ -57,6 +57,7 @@
   "prop.section.device": "Operand",
   "prop.section.geometry": "Lage und Größe",
   "prop.enabled": "Aktiv",
+  "prop.visible": "Im Betriebsbild zeigen",
   "prop.type": "Typ",
   "prop.name": "Beschriftung",
   "prop.device": "Operand",

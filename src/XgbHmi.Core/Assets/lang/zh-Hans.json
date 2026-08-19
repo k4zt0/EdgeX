@@ -57,6 +57,7 @@
   "prop.section.device": "软元件",
   "prop.section.geometry": "位置和大小",
   "prop.enabled": "启用",
+  "prop.visible": "在运行画面显示",
   "prop.type": "类型",
   "prop.name": "显示名称",
   "prop.device": "软元件",

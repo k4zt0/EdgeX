@@ -57,6 +57,7 @@
   "prop.section.device": "Adres",
   "prop.section.geometry": "Konum ve boyut",
   "prop.enabled": "Etkin",
+  "prop.visible": "Çalışma ekranında göster",
   "prop.type": "Tür",
   "prop.name": "Etiket",
   "prop.device": "Adres",

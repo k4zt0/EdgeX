@@ -103,6 +103,21 @@
     <Setter Property="MinHeight" Value="26" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <!-- 카드 배경에 묻혀 투명해 보이지 않도록 또렷한 바탕과 테두리를 준다. -->
+    <Setter Property="Background" Value="{DynamicResource App.Surface}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource App.BorderStrong}" />
+    <Setter Property="BorderThickness" Value="1.4" />
+  </Style>
+  <!-- 위 바탕 지정이 primary/danger 를 덮으므로 카드 버튼용으로 다시 지정한다. -->
+  <Style Selector="Button.hmi.primary">
+    <Setter Property="Background" Value="{DynamicResource App.Accent}" />
+    <Setter Property="Foreground" Value="{DynamicResource App.AccentText}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource App.Accent}" />
+  </Style>
+  <Style Selector="Button.hmi.danger">
+    <Setter Property="Background" Value="{DynamicResource App.Error}" />
+    <Setter Property="Foreground" Value="{DynamicResource App.TextInverse}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource App.Error}" />
   </Style>
 
   <!-- ============ 토글 버튼 ============ -->

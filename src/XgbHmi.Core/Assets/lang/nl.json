@@ -57,6 +57,7 @@
   "prop.section.device": "Adres",
   "prop.section.geometry": "Positie en grootte",
   "prop.enabled": "Actief",
+  "prop.visible": "Tonen op bedrijfsscherm",
   "prop.type": "Type",
   "prop.name": "Label",
   "prop.device": "Adres",

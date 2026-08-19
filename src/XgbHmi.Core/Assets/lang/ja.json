@@ -57,6 +57,7 @@
   "prop.section.device": "デバイス",
   "prop.section.geometry": "位置・サイズ",
   "prop.enabled": "使用",
+  "prop.visible": "運転画面に表示",
   "prop.type": "種類",
   "prop.name": "表示名",
   "prop.device": "デバイス",

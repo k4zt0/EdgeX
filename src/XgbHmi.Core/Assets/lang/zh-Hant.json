@@ -57,6 +57,7 @@
   "prop.section.device": "元件位址",
   "prop.section.geometry": "位置與大小",
   "prop.enabled": "啟用",
+  "prop.visible": "在運轉畫面顯示",
   "prop.type": "類型",
   "prop.name": "顯示名稱",
   "prop.device": "元件位址",

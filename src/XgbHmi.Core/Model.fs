@@ -98,6 +98,8 @@ module SwitchAction =
 type HmiItem =
     { Id: string
       Enabled: bool
+      /// 운전 화면에 카드로 띄울지. 꺼도 통합 스위치는 계속 지켜보고 폴링도 그대로 돈다.
+      Visible: bool
       Kind: ItemKind
       Name: string
       Device: string
@@ -150,6 +152,7 @@ module Item =
     let empty =
         { Id = newId ()
           Enabled = true
+          Visible = true
           Kind = Switch
           Name = "새 스위치"
           Device = "M1000"

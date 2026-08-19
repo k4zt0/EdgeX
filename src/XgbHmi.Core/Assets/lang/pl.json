@@ -57,6 +57,7 @@
   "prop.section.device": "Adres",
   "prop.section.geometry": "Położenie i rozmiar",
   "prop.enabled": "Aktywny",
+  "prop.visible": "Pokaż na ekranie pracy",
   "prop.type": "Typ",
   "prop.name": "Etykieta",
   "prop.device": "Adres",

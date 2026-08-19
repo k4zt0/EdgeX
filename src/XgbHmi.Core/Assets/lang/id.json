@@ -57,6 +57,7 @@
   "prop.section.device": "Alamat",
   "prop.section.geometry": "Posisi dan ukuran",
   "prop.enabled": "Aktif",
+  "prop.visible": "Tampilkan di layar operasi",
   "prop.type": "Jenis",
   "prop.name": "Label",
   "prop.device": "Alamat",

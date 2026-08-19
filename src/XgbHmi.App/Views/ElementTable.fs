@@ -62,6 +62,7 @@ type ElementTableView(state: AppState) =
 
     do
         grid.Columns.Add(checkColumn (I18n.t "prop.enabled") "Enabled" 56.0)
+        grid.Columns.Add(checkColumn (I18n.t "prop.visible") "Visible" 86.0)
         grid.Columns.Add(comboColumn (I18n.t "prop.type") "KindIndex" (ItemKind.all |> List.map I18n.kindLabel) 132.0)
         grid.Columns.Add(textColumn (I18n.t "prop.name") "Name" 190.0)
         grid.Columns.Add(textColumn (I18n.t "prop.device") "Device" 110.0)

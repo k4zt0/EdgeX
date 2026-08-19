@@ -279,3 +279,44 @@ let ``통합 스위치는 폴링 주소를 만들지 않는다`` () =
     let bits, words = Project.scanAddresses items
     Assert.Equal<string list>([ "M1000"; "P00120" ], bits)
     Assert.Equal<string list>([ "D100" ], words)
+
+[<Fact>]
+let ``운전 화면 표시는 저장되고 예전 파일은 모두 보인다`` () =
+    let path = tempFile ()
+    try
+        let items =
+            [ { Item.create Switch with Name = "숨김"; Device = "M1000"; Visible = false }
+              { Item.create Switch with Name = "보임"; Device = "M1001" } ]
+        ProjectIo.save path { Project.empty with Items = items }
+        let back = (ProjectIo.load path).Items
+        Assert.False back.[0].Visible
+        Assert.True back.[1].Visible
+    finally
+        if File.Exists path then File.Delete path
+
+[<Fact>]
+let ``Visible 항목이 없는 v6 파일은 전부 보이게 읽는다`` () =
+    let xml =
+        """<?xml version="1.0" encoding="utf-8"?>
+<HmiProject>
+  <PlcIp>192.168.1.120</PlcIp>
+  <Port>2004</Port>
+  <CycleMs>300</CycleMs>
+  <Items>
+    <HmiItem>
+      <Id>a</Id>
+      <Enabled>true</Enabled>
+      <Type>SWITCH</Type>
+      <Name>스위치</Name>
+      <Device>M1000</Device>
+      <MonitorDevice />
+      <Action>토글</Action>
+    </HmiItem>
+  </Items>
+</HmiProject>"""
+    let path = tempFile ()
+    try
+        File.WriteAllText(path, xml)
+        Assert.True (ProjectIo.load path).Items.Head.Visible
+    finally
+        if File.Exists path then File.Delete path

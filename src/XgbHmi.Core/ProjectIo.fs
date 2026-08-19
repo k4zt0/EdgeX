@@ -44,6 +44,8 @@ module ProjectIo =
             let id = str e "Id" ""
             if String.IsNullOrWhiteSpace id then Item.newId () else id
           Enabled = bool' e "Enabled" true
+          // 이 항목이 없는 예전 파일은 지금까지처럼 전부 보이게 읽는다.
+          Visible = bool' e "Visible" true
           Kind = kind
           Name = str e "Name" ""
           Device = (str e "Device" "").Trim().ToUpperInvariant()
@@ -62,6 +64,7 @@ module ProjectIo =
             XName.Get "HmiItem",
             XElement(XName.Get "Id", h.Id),
             XElement(XName.Get "Enabled", (if h.Enabled then "true" else "false")),
+            XElement(XName.Get "Visible", (if h.Visible then "true" else "false")),
             XElement(XName.Get "Type", h.Kind.Code),
             XElement(XName.Get "Name", h.Name),
             XElement(XName.Get "Device", h.Device),
