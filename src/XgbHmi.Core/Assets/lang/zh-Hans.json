@@ -30,6 +30,7 @@
   "cmd.editTools": "编辑工具",
   "cmd.addElement": "添加元素",
   "cmd.addSwitchBatch": "批量添加开关",
+  "cmd.killAll": "全部停止",
   "cmd.connect": "连接",
   "cmd.disconnect": "断开",
   "cmd.writeEnable": "允许写入 PLC",
@@ -162,8 +163,6 @@
   "cmd.redo": "重做",
   "cmd.fitToWindow": "适应窗口",
   "screen.size": "画面大小",
-  "master.target": "目标",
   "master.running": "执行中",
-  "master.displayOnly": "仅显示",
-  "master.noTarget": "无目标"
+  "master.idle": "无动作"
 }

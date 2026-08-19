@@ -30,6 +30,7 @@
   "cmd.editTools": "संपादन उपकरण",
   "cmd.addElement": "तत्व जोड़ें",
   "cmd.addSwitchBatch": "एक साथ कई स्विच जोड़ें",
+  "cmd.killAll": "सब बंद करें",
   "cmd.connect": "कनेक्ट",
   "cmd.disconnect": "डिस्कनेक्ट",
   "cmd.writeEnable": "PLC लेखन की अनुमति दें",
@@ -162,8 +163,6 @@
   "cmd.redo": "फिर से करें",
   "cmd.fitToWindow": "विंडो में फ़िट करें",
   "screen.size": "स्क्रीन आकार",
-  "master.target": "लक्ष्य",
   "master.running": "चल रहा है",
-  "master.displayOnly": "केवल प्रदर्शन",
-  "master.noTarget": "कोई लक्ष्य नहीं"
+  "master.idle": "कोई गतिविधि नहीं"
 }

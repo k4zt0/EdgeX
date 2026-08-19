@@ -30,6 +30,7 @@
   "cmd.editTools": "Ferramentas de edição",
   "cmd.addElement": "Adicionar elemento",
   "cmd.addSwitchBatch": "Adicionar botões em lote",
+  "cmd.killAll": "Parar tudo",
   "cmd.connect": "Conectar",
   "cmd.disconnect": "Desconectar",
   "cmd.writeEnable": "Permitir escrita no CLP",
@@ -162,8 +163,6 @@
   "cmd.redo": "Refazer",
   "cmd.fitToWindow": "Ajustar à janela",
   "screen.size": "Tamanho da tela",
-  "master.target": "Alvo",
   "master.running": "Em execução",
-  "master.displayOnly": "Somente exibição",
-  "master.noTarget": "Sem alvo"
+  "master.idle": "Sem atividade"
 }

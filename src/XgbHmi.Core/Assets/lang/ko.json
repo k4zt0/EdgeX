@@ -30,6 +30,7 @@
   "cmd.editTools": "편집 도구",
   "cmd.addElement": "요소 추가",
   "cmd.addSwitchBatch": "스위치 수량 추가",
+  "cmd.killAll": "전체 종료",
   "cmd.connect": "연결",
   "cmd.disconnect": "연결 해제",
   "cmd.writeEnable": "PLC 쓰기 허용",
@@ -162,8 +163,6 @@
   "cmd.redo": "다시 실행",
   "cmd.fitToWindow": "창에 맞추기",
   "screen.size": "화면 크기",
-  "master.target": "대상",
   "master.running": "실행 중",
-  "master.displayOnly": "표시 전용",
-  "master.noTarget": "대상 없음"
+  "master.idle": "동작 없음"
 }

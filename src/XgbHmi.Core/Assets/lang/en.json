@@ -30,6 +30,7 @@
   "cmd.editTools": "Edit Tools",
   "cmd.addElement": "Add Element",
   "cmd.addSwitchBatch": "Add Switches in Bulk",
+  "cmd.killAll": "Stop All",
   "cmd.connect": "Connect",
   "cmd.disconnect": "Disconnect",
   "cmd.writeEnable": "Allow PLC Write",
@@ -162,8 +163,6 @@
   "cmd.redo": "Redo",
   "cmd.fitToWindow": "Fit to Window",
   "screen.size": "Screen size",
-  "master.target": "Target",
   "master.running": "Running",
-  "master.displayOnly": "Display only",
-  "master.noTarget": "No target"
+  "master.idle": "No activity"
 }

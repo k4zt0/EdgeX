@@ -30,6 +30,7 @@
   "cmd.editTools": "Narzędzia edycji",
   "cmd.addElement": "Dodaj element",
   "cmd.addSwitchBatch": "Dodaj przyciski zbiorczo",
+  "cmd.killAll": "Zatrzymaj wszystko",
   "cmd.connect": "Połącz",
   "cmd.disconnect": "Rozłącz",
   "cmd.writeEnable": "Zezwól na zapis do PLC",
@@ -162,8 +163,6 @@
   "cmd.redo": "Ponów",
   "cmd.fitToWindow": "Dopasuj do okna",
   "screen.size": "Rozmiar ekranu",
-  "master.target": "Cel",
   "master.running": "W toku",
-  "master.displayOnly": "Tylko podgląd",
-  "master.noTarget": "Brak celu"
+  "master.idle": "Brak aktywności"
 }

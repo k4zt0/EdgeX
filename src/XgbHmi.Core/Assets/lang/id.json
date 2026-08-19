@@ -30,6 +30,7 @@
   "cmd.editTools": "Alat edit",
   "cmd.addElement": "Tambah elemen",
   "cmd.addSwitchBatch": "Tambah sakelar massal",
+  "cmd.killAll": "Hentikan semua",
   "cmd.connect": "Sambungkan",
   "cmd.disconnect": "Putuskan",
   "cmd.writeEnable": "Izinkan tulis PLC",
@@ -162,8 +163,6 @@
   "cmd.redo": "Ulangi",
   "cmd.fitToWindow": "Paskan ke jendela",
   "screen.size": "Ukuran layar",
-  "master.target": "Target",
   "master.running": "Berjalan",
-  "master.displayOnly": "Hanya tampilan",
-  "master.noTarget": "Tanpa target"
+  "master.idle": "Tidak ada aktivitas"
 }

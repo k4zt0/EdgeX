@@ -30,6 +30,7 @@
   "cmd.editTools": "編集ツール",
   "cmd.addElement": "要素を追加",
   "cmd.addSwitchBatch": "スイッチを一括追加",
+  "cmd.killAll": "全停止",
   "cmd.connect": "接続",
   "cmd.disconnect": "切断",
   "cmd.writeEnable": "PLC書き込み許可",
@@ -162,8 +163,6 @@
   "cmd.redo": "やり直し",
   "cmd.fitToWindow": "ウィンドウに合わせる",
   "screen.size": "画面サイズ",
-  "master.target": "対象",
   "master.running": "実行中",
-  "master.displayOnly": "表示専用",
-  "master.noTarget": "対象なし"
+  "master.idle": "動作なし"
 }

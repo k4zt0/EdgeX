@@ -30,6 +30,7 @@
   "cmd.editTools": "Outils d'édition",
   "cmd.addElement": "Ajouter un élément",
   "cmd.addSwitchBatch": "Ajouter des boutons en série",
+  "cmd.killAll": "Tout arrêter",
   "cmd.connect": "Connecter",
   "cmd.disconnect": "Déconnecter",
   "cmd.writeEnable": "Autoriser l'écriture API",
@@ -162,8 +163,6 @@
   "cmd.redo": "Rétablir",
   "cmd.fitToWindow": "Ajuster à la fenêtre",
   "screen.size": "Taille de l'écran",
-  "master.target": "Cible",
   "master.running": "En cours",
-  "master.displayOnly": "Affichage seul",
-  "master.noTarget": "Aucune cible"
+  "master.idle": "Aucune activité"
 }

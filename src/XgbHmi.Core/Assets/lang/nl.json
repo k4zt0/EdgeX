@@ -30,6 +30,7 @@
   "cmd.editTools": "Bewerkgereedschap",
   "cmd.addElement": "Element toevoegen",
   "cmd.addSwitchBatch": "Schakelaars in bulk toevoegen",
+  "cmd.killAll": "Alles stoppen",
   "cmd.connect": "Verbinden",
   "cmd.disconnect": "Verbreken",
   "cmd.writeEnable": "PLC-schrijven toestaan",
@@ -162,8 +163,6 @@
   "cmd.redo": "Opnieuw",
   "cmd.fitToWindow": "Aan venster aanpassen",
   "screen.size": "Schermgrootte",
-  "master.target": "Doel",
   "master.running": "Bezig",
-  "master.displayOnly": "Alleen weergave",
-  "master.noTarget": "Geen doel"
+  "master.idle": "Geen activiteit"
 }

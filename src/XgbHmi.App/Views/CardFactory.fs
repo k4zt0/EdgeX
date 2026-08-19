@@ -37,8 +37,10 @@ type CardCallbacks =
       MomentaryDown: ElementVm -> unit
       MomentaryUp: ElementVm -> unit
       NumericWrite: ElementVm -> int -> unit
-      /// 통합 스위치가 고를 수 있는 대상. 화면 편집에 있는 요소 전부다.
+      /// 통합 스위치가 지켜볼 대상. 화면 편집에 있는 요소 전부다.
       Targets: unit -> ElementVm list
+      /// 킬 스위치. 조작할 수 있는 비트를 모두 OFF 로 쓴다.
+      KillAll: unit -> unit
       /// 배치 편집 중이면 false. PLC로 명령을 보내지 않는다.
       IsInteractive: unit -> bool }
 
@@ -304,128 +306,35 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
         layout.Children.Add holder
 
     | MasterSwitch ->
-        // 대상 고르기 → 상태 램프 → 조작 버튼. 화면에 있는 요소를 이 한 장으로 모두 다룬다.
-        let targets = cb.Targets()
-        targetList.Value <- targets
-        target.Value <- List.tryHead targets
-
-        let combo =
-            ComboBox(
-                ItemsSource = (targets |> List.map targetLabel |> List.toArray),
-                SelectedIndex = (if targets.IsEmpty then -1 else 0),
-                PlaceholderText = I18n.t "master.noTarget",
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                Margin = Thickness(0.0, 5.0, 0.0, 0.0),
-                MinHeight = 28.0,
-                FontFamily = Ui.uiFont
-            )
-        targetBox <- combo
-        Grid.SetRow(combo, 1)
-        layout.Children.Add combo
-
-        // 지금 도는 것들을 한 줄씩 쌓는다. 두 줄 이상이면 카드가 알아서 커진다.
+        // 모니터링 전용. 조작 버튼은 두지 않고, 지금 도는 것을 한 줄씩 쌓아 보여 준다.
         let list = StackPanel(Orientation = Orientation.Vertical, Spacing = 4.0)
+        let scroll =
+            ScrollViewer(
+                Content = list,
+                HorizontalScrollBarVisibility = Primitives.ScrollBarVisibility.Disabled,
+                VerticalScrollBarVisibility = Primitives.ScrollBarVisibility.Auto
+            )
         let holder =
             Border(
                 Background = Ui.tint p.Off 0.10,
                 CornerRadius = CornerRadius 6.0,
                 Margin = Thickness(0.0, 5.0, 0.0, 0.0),
                 Padding = Thickness(8.0, 6.0),
-                Child = list
+                Child = scroll
             )
         runList <- list
         runHolder <- holder
-        Grid.SetRow(holder, 2)
+        Grid.SetRow(holder, 1)
+        Grid.SetRowSpan(holder, 2)
         layout.Children.Add holder
 
-        // WORD 대상일 때만 쓰는 값 입력칸
-        let value =
-            NumericUpDown(
-                Minimum = -32768m,
-                Maximum = 65535m,
-                Value = 0m,
-                Increment = 1m,
-                FormatString = "0",
-                FontFamily = Ui.monoFont,
-                FontWeight = FontWeight.Bold,
-                Margin = Thickness(0.0, 5.0, 0.0, 0.0),
-                MinHeight = 28.0,
-                IsVisible = false
-            )
-        targetValue <- value
-
-        let b = Ui.button (I18n.t "action.toggle") [ "hmi" ] (fun () -> ())
-        b.MinHeight <- 30.0
-        b.VerticalAlignment <- VerticalAlignment.Stretch
-        let host = makeLamp b
-        host.Margin <- Thickness(0.0, 5.0, 0.0, 0.0)
-        let lamp = Some(host, b)
-        actionLamp <- lamp
-
-        /// 고른 대상의 동작을 그대로 수행한다. 순간 스위치는 누름/뗌을 나눠 보낸다.
-        let run () =
-            match target.Value with
-            | Some t when interactive () ->
-                match t.Kind with
-                | Switch
-                | SwitchLamp ->
-                    match t.Action with
-                    | Toggle -> cb.Toggle t
-                    | On -> cb.WriteOn t
-                    | Off -> cb.WriteOff t
-                    | Momentary -> ()
-                | NumInput -> cb.NumericWrite t (if value.Value.HasValue then int value.Value.Value else 0)
-                | _ -> ()
-            | _ -> ()
-
-        b.Click.Add(fun _ -> run ())
-
-        // 순간 동작 대상은 누르는 동안만 ON 이어야 하므로 눌림/뗌을 직접 받는다.
-        let momentaryTarget () =
-            match target.Value with
-            | Some t when t.Action = Momentary && (t.Kind = Switch || t.Kind = SwitchLamp) -> Some t
-            | _ -> None
-        let release () =
-            if held.Value then
-                held.Value <- false
-                light lamp None
-                match momentaryTarget () with
-                | Some t when interactive () -> cb.MomentaryUp t
-                | _ -> ()
-        b.AddHandler(
-            InputElement.PointerPressedEvent,
-            (fun _ (e: PointerPressedEventArgs) ->
-                match momentaryTarget () with
-                | Some t when interactive () && e.GetCurrentPoint(b).Properties.IsLeftButtonPressed ->
-                    held.Value <- true
-                    light lamp (Some p.On)
-                    cb.MomentaryDown t
-                | _ -> ()),
-            Interactivity.RoutingStrategies.Tunnel
-        )
-        b.AddHandler(
-            InputElement.PointerReleasedEvent,
-            (fun _ (_: PointerReleasedEventArgs) -> release ()),
-            Interactivity.RoutingStrategies.Tunnel
-        )
-        b.PointerExited.Add(fun _ -> release ())
-
-        combo.SelectionChanged.Add(fun _ ->
-            let list = targetList.Value
-            let i = combo.SelectedIndex
-            target.Value <- (if i >= 0 && i < list.Length then Some list.[i] else None)
-            // 다음 스캔을 기다리지 않고 고른 대상의 상태를 바로 보여 준다.
-            redraw.Value ())
-
-        let g = Grid()
-        g.RowDefinitions.Add(RowDefinition(GridLength.Auto))
-        g.RowDefinitions.Add(RowDefinition(GridLength(1.0, GridUnitType.Star)))
-        Grid.SetRow(value, 0)
-        Grid.SetRow(host, 1)
-        g.Children.Add value
-        g.Children.Add host
-        Grid.SetRow(g, 3)
-        layout.Children.Add g
+        // 킬 스위치. 이 카드에서 값을 켜는 일은 없고, 끄는 것만 한다.
+        let kill = Ui.button (I18n.t "cmd.killAll") [ "hmi"; "danger" ] (fun () -> if interactive () then cb.KillAll())
+        kill.MinHeight <- 34.0
+        kill.VerticalAlignment <- VerticalAlignment.Stretch
+        kill.Margin <- Thickness(0.0, 5.0, 0.0, 0.0)
+        Grid.SetRow(kill, 3)
+        layout.Children.Add kill
 
     | NumDisplay ->
         let value = Ui.mono 22.0 (I18n.t "state.unknown")
@@ -624,36 +533,7 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
         | Lamp -> showLamp (bitOf vm.Device)
 
         | MasterSwitch ->
-            // 화면 편집에서 요소가 늘거나 이름이 바뀌면 목록도 따라간다. 고르던 대상은 그대로 둔다.
-            let latest = cb.Targets()
-            if (latest |> List.map targetLabel) <> (targetList.Value |> List.map targetLabel) then
-                let keep =
-                    target.Value
-                    |> Option.bind (fun t -> latest |> List.tryFindIndex (fun x -> x.Id = t.Id))
-                targetList.Value <- latest
-                if not (isNull targetBox) then
-                    targetBox.ItemsSource <- latest |> List.map targetLabel |> List.toArray
-                    targetBox.SelectedIndex <-
-                        match keep with
-                        | Some i -> i
-                        | None -> if latest.IsEmpty then -1 else 0
-
-            // 대상에 맞춰 값 입력칸을 여닫는다.
-            let operable =
-                match target.Value with
-                | Some t ->
-                    match t.Kind with
-                    | Switch
-                    | SwitchLamp -> true
-                    | NumInput -> true
-                    | _ -> false
-                | None -> false
-            if not (isNull targetValue) then
-                targetValue.IsVisible <- (match target.Value with
-                                          | Some t -> t.Kind = NumInput
-                                          | None -> false)
-
-            // ---- 지금 도는 것들을 모아 한 줄씩 보여 준다 ----
+            // ---- 지금 도는 것을 모아 한 줄씩 보여 준다 (모니터링 전용) ----
             let bitText (device: string) =
                 if String.IsNullOrWhiteSpace device then ""
                 else
@@ -675,8 +555,7 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
                     let b = bitText t.MonitorDevice
                     if b = "" then a else a + "   ·   " + b
 
-            let running =
-                status.Operations |> List.map (fun op -> op.Id, op) |> dict
+            let running = status.Operations |> List.map (fun op -> op.Id, op) |> dict
 
             let liveOf (t: ElementVm) =
                 if String.IsNullOrWhiteSpace t.MonitorDevice then bitOf t.Device
@@ -685,51 +564,40 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
                     | Some v -> Some v
                     | None -> bitOf t.Device
 
-            // 오류 > 실행 중 > 켜져 있음 순서로 골라 담는다.
-            let rows =
-                targetList.Value
-                |> List.choose (fun t ->
-                    match t.Fault with
-                    | Some m -> Some(p.Error, t.Name + " · " + I18n.t "state.fault", deviceLine t, m)
-                    | None ->
-                        match running.TryGetValue t.Id with
-                        | true, op ->
-                            Some(p.On, sprintf "%s · %s · %s" (I18n.t "master.running") t.Name op.Action, deviceLine t, "")
-                        | _ ->
-                            if ItemKind.isWord t.Kind then None
-                            elif liveOf t = Some true then
-                                Some(p.On, t.Name + " · " + I18n.t "state.on", deviceLine t, "")
-                            else None)
+            // 화면에 있는 요소를 전부 담는다. 급한 것(오류 > 실행 중 > 켜짐)이 위로 오고,
+            // 동작 중이 아닌 것은 흰색(테마 기본 글자색)으로 아래에 붙는다.
+            let all =
+                cb.Targets()
+                |> List.mapi (fun i t ->
+                    let order, color, title, tip =
+                        match t.Fault with
+                        | Some m -> 0, p.Error, t.Name + " · " + I18n.t "state.fault", m
+                        | None ->
+                            match running.TryGetValue t.Id with
+                            | true, op -> 1, p.On, sprintf "%s · %s · %s" (I18n.t "master.running") t.Name op.Action, ""
+                            | _ ->
+                                if ItemKind.isWord t.Kind then
+                                    let v =
+                                        match wordOf t.Device with
+                                        | Some w -> string (int16 w)
+                                        | None -> I18n.t "state.unknown"
+                                    3, p.Text, t.Name + " · " + v, ""
+                                elif liveOf t = Some true then 2, p.On, t.Name + " · " + I18n.t "state.on", ""
+                                else 3, p.Text, t.Name + " · " + I18n.t "state.off", ""
+                    order, i, color, title, deviceLine t, tip)
+                |> List.sortBy (fun (order, i, _, _, _, _) -> order, i)
 
-            // 도는 게 하나도 없으면 겨누고 있는 대상의 현재 값을 보여 준다.
-            let rows =
-                if not rows.IsEmpty then rows
-                else
-                    match target.Value with
-                    | None -> [ p.Off, I18n.t "master.noTarget", "", "" ]
-                    | Some t ->
-                        let color =
-                            if ItemKind.isWord t.Kind then p.KindNumeric
-                            elif liveOf t = Some true then p.On
-                            else p.Off
-                        let state =
-                            if ItemKind.isWord t.Kind then
-                                match wordOf t.Device with
-                                | Some w -> string (int16 w)
-                                | None -> I18n.t "state.unknown"
-                            else
-                                match liveOf t with
-                                | Some true -> I18n.t "state.on"
-                                | Some false -> I18n.t "state.off"
-                                | None -> I18n.t "state.unknown"
-                        [ color, t.Name + " · " + state, deviceLine t, "" ]
+            let rows = all |> List.filter (fun (order, _, _, _, _, _) -> order < 3)
+            let shown =
+                if all.IsEmpty then [ p.Off, I18n.t "master.idle", "", "" ]
+                else all |> List.map (fun (_, _, c, t, d, tip) -> c, t, d, tip)
 
             // 내용이 그대로면 다시 만들지 않는다. (스캔마다 컨트롤을 새로 만들지 않도록)
-            let signature = rows |> List.map (fun (c, a, b, _) -> c + a + b) |> String.concat "|"
+            let signature = shown |> List.map (fun (c, a, b, _) -> c + a + b) |> String.concat "|"
             if signature <> runSignature.Value && not (isNull runList) then
                 runSignature.Value <- signature
                 runList.Children.Clear()
-                for color, title, detail, tip in rows do
+                for color, title, detail, tip in shown do
                     let dot = Ellipse(Width = 10.0, Height = 10.0, Fill = Ui.brush color, VerticalAlignment = VerticalAlignment.Center)
                     let head = Ui.title 13.5 title
                     head.Foreground <- Ui.brush color
@@ -746,38 +614,25 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
                     if not (String.IsNullOrWhiteSpace tip) then ToolTip.SetTip(row, tip)
                     runList.Children.Add row
 
-                // 두 줄 이상이면 카드를 그만큼 키운다. (줄어들지는 않는다)
-                let rowHeight = rows |> List.sumBy (fun (_, _, d, _) -> if String.IsNullOrWhiteSpace d then 22.0 else 36.0)
-                root.Height <- max (float vm.Height) (128.0 + rowHeight)
+                // 줄이 늘면 카드도 커진다. 배치에서 정한 높이보다 작아지지 않고,
+                // 너무 길어지면 더 키우지 않고 목록 안에서 스크롤한다.
+                let listHeight = shown |> List.sumBy (fun (_, _, d, _) -> if String.IsNullOrWhiteSpace d then 22.0 else 36.0)
+                root.Height <- max (float vm.Height) (min 560.0 (108.0 + listHeight))
 
-            // 카드 제목과 버튼도 지금 값으로 바꾼다.
-            let headColor, headText, headTag =
-                match rows with
-                | (c, a, _, _) :: rest ->
-                    let more = if rest.IsEmpty then "" else sprintf "  +%d" rest.Length
-                    c, a + more, (match target.Value with Some t -> t.Device | None -> "")
-                | [] -> p.Off, vm.Name, ""
-            nameText.Text <- headText
-            deviceTag.Text <- headTag
-            light actionLamp (if headColor = p.On then Some p.On elif headColor = p.Error then Some p.Error else None)
+            // 제목에는 지금 상태를 요약한다. (실행 중 n · ON n · 오류 n)
+            let faults = rows |> List.filter (fun (_, _, c, _, _, _) -> c = p.Error) |> List.length
+            let inflight = status.Operations |> List.length
+            let on = rows.Length - faults - inflight
+            let part (label: string) (n: int) = if n > 0 then [ sprintf "%s %d" label n ] else []
+            let summary =
+                (part (I18n.t "master.running") inflight
+                 @ part (I18n.t "state.on") (max 0 on)
+                 @ part (I18n.t "state.fault") faults)
+                |> String.concat "  ·  "
+            nameText.Text <- (if summary = "" then vm.Name else summary)
+            nameText.Foreground <- Ui.brush (if faults > 0 then p.Error elif rows.IsEmpty then p.Text else p.On)
+            deviceTag.Text <- string (cb.Targets() |> List.length)
 
-            // 버튼에는 동작 이름과 함께 디바이스 · 상태확인 디바이스 값을 같이 적는다.
-            match actionLamp with
-            | Some(_, b) ->
-                b.Content <-
-                    match target.Value with
-                    | None -> I18n.t "master.noTarget"
-                    | Some t ->
-                        let action =
-                            match t.Kind with
-                            | Switch
-                            | SwitchLamp -> I18n.actionLabel t.Action
-                            | NumInput -> I18n.t "btn.write"
-                            | _ -> I18n.t "master.displayOnly"
-                        let line = deviceLine t
-                        if String.IsNullOrWhiteSpace line then action else action + "\n" + line
-                b.IsEnabled <- operable
-            | None -> ()
 
         | NumDisplay ->
             match wordOf vm.Device with

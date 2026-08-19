@@ -30,6 +30,7 @@
   "cmd.editTools": "เครื่องมือแก้ไข",
   "cmd.addElement": "เพิ่มองค์ประกอบ",
   "cmd.addSwitchBatch": "เพิ่มสวิตช์เป็นชุด",
+  "cmd.killAll": "หยุดทั้งหมด",
   "cmd.connect": "เชื่อมต่อ",
   "cmd.disconnect": "ตัดการเชื่อมต่อ",
   "cmd.writeEnable": "อนุญาตให้เขียน PLC",
@@ -162,8 +163,6 @@
   "cmd.redo": "ทำซ้ำ",
   "cmd.fitToWindow": "พอดีหน้าต่าง",
   "screen.size": "ขนาดหน้าจอ",
-  "master.target": "เป้าหมาย",
   "master.running": "กำลังทำงาน",
-  "master.displayOnly": "แสดงอย่างเดียว",
-  "master.noTarget": "ไม่มีเป้าหมาย"
+  "master.idle": "ไม่มีการทำงาน"
 }

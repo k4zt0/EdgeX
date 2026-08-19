@@ -30,6 +30,7 @@
   "cmd.editTools": "Bearbeitung",
   "cmd.addElement": "Element hinzufügen",
   "cmd.addSwitchBatch": "Schalter als Serie anlegen",
+  "cmd.killAll": "Alle stoppen",
   "cmd.connect": "Verbinden",
   "cmd.disconnect": "Trennen",
   "cmd.writeEnable": "SPS-Schreiben erlauben",
@@ -162,8 +163,6 @@
   "cmd.redo": "Wiederholen",
   "cmd.fitToWindow": "An Fenster anpassen",
   "screen.size": "Bildgröße",
-  "master.target": "Ziel",
   "master.running": "Läuft",
-  "master.displayOnly": "Nur Anzeige",
-  "master.noTarget": "Kein Ziel"
+  "master.idle": "Keine Aktivität"
 }

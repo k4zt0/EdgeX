@@ -30,6 +30,7 @@
   "cmd.editTools": "Nástroje úprav",
   "cmd.addElement": "Přidat prvek",
   "cmd.addSwitchBatch": "Hromadně přidat tlačítka",
+  "cmd.killAll": "Zastavit vše",
   "cmd.connect": "Připojit",
   "cmd.disconnect": "Odpojit",
   "cmd.writeEnable": "Povolit zápis do PLC",
@@ -162,8 +163,6 @@
   "cmd.redo": "Znovu",
   "cmd.fitToWindow": "Přizpůsobit oknu",
   "screen.size": "Velikost obrazovky",
-  "master.target": "Cíl",
   "master.running": "Probíhá",
-  "master.displayOnly": "Jen zobrazení",
-  "master.noTarget": "Bez cíle"
+  "master.idle": "Žádná činnost"
 }

@@ -30,6 +30,7 @@
   "cmd.editTools": "أدوات التحرير",
   "cmd.addElement": "إضافة عنصر",
   "cmd.addSwitchBatch": "إضافة مفاتيح دفعة واحدة",
+  "cmd.killAll": "إيقاف الكل",
   "cmd.connect": "اتصال",
   "cmd.disconnect": "قطع الاتصال",
   "cmd.writeEnable": "السماح بالكتابة إلى PLC",
@@ -162,8 +163,6 @@
   "cmd.redo": "إعادة",
   "cmd.fitToWindow": "ملاءمة النافذة",
   "screen.size": "مقاس الشاشة",
-  "master.target": "الهدف",
   "master.running": "قيد التنفيذ",
-  "master.displayOnly": "عرض فقط",
-  "master.noTarget": "لا يوجد هدف"
+  "master.idle": "لا يوجد نشاط"
 }

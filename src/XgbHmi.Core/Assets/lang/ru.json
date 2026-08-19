@@ -30,6 +30,7 @@
   "cmd.editTools": "Инструменты правки",
   "cmd.addElement": "Добавить элемент",
   "cmd.addSwitchBatch": "Добавить кнопки пакетом",
+  "cmd.killAll": "Остановить всё",
   "cmd.connect": "Подключить",
   "cmd.disconnect": "Отключить",
   "cmd.writeEnable": "Разрешить запись в ПЛК",
@@ -162,8 +163,6 @@
   "cmd.redo": "Вернуть",
   "cmd.fitToWindow": "Вписать в окно",
   "screen.size": "Размер экрана",
-  "master.target": "Цель",
   "master.running": "Выполняется",
-  "master.displayOnly": "Только показ",
-  "master.noTarget": "Нет цели"
+  "master.idle": "Нет активности"
 }

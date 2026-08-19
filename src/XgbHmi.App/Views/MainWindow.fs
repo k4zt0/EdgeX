@@ -345,6 +345,20 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                     Dialogs.error win (I18n.tf "msg.writeFailed" [| box device; box message |]) |> ignore))
         |> ignore
 
+    /// 킬 스위치. 조작할 수 있는 비트를 모두 OFF 로 쓴다.
+    /// 확인 대화상자는 두지 않는다. 끄는 방향은 안전한 쪽이고, 급할 때 한 번에 눌러야 한다.
+    /// (쓰기 자체는 'PLC 쓰기 허용' 을 켜야만 열린다)
+    let killAll () =
+        if ensureCanWrite () then
+            let victims =
+                state.Elements
+                |> Seq.filter (fun e ->
+                    e.Enabled && ItemKind.hasAction e.Kind && not (String.IsNullOrWhiteSpace e.Device))
+                |> List.ofSeq
+            log Warn (sprintf "KILL SWITCH — 비트 %d개를 OFF 로 씁니다" victims.Length)
+            for vm in victims do
+                writeBit vm false
+
     let cardCallbacks: CardFactory.CardCallbacks =
         { Toggle = fun vm -> if ensureCanWrite () then toggleBit vm
           WriteOn = fun vm -> if ensureCanWrite () then writeBit vm true
@@ -358,6 +372,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                 state.Elements
                 |> Seq.filter (fun e -> e.Enabled && e.Kind <> MasterSwitch && not (String.IsNullOrWhiteSpace e.Device))
                 |> List.ofSeq
+          KillAll = killAll
           IsInteractive = fun () -> not layoutMode }
 
     // ---------- 연결 ----------

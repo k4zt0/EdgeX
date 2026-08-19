@@ -30,6 +30,7 @@
   "cmd.editTools": "Công cụ chỉnh sửa",
   "cmd.addElement": "Thêm phần tử",
   "cmd.addSwitchBatch": "Thêm hàng loạt nút",
+  "cmd.killAll": "Dừng tất cả",
   "cmd.connect": "Kết nối",
   "cmd.disconnect": "Ngắt kết nối",
   "cmd.writeEnable": "Cho phép ghi PLC",
@@ -162,8 +163,6 @@
   "cmd.redo": "Làm lại",
   "cmd.fitToWindow": "Vừa cửa sổ",
   "screen.size": "Kích thước màn hình",
-  "master.target": "Mục tiêu",
   "master.running": "Đang chạy",
-  "master.displayOnly": "Chỉ hiển thị",
-  "master.noTarget": "Không có mục tiêu"
+  "master.idle": "Không có hoạt động"
 }

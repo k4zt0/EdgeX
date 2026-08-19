@@ -30,6 +30,7 @@
   "cmd.editTools": "Düzenleme araçları",
   "cmd.addElement": "Öğe ekle",
   "cmd.addSwitchBatch": "Toplu buton ekle",
+  "cmd.killAll": "Tümünü durdur",
   "cmd.connect": "Bağlan",
   "cmd.disconnect": "Bağlantıyı kes",
   "cmd.writeEnable": "PLC yazmaya izin ver",
@@ -162,8 +163,6 @@
   "cmd.redo": "Yinele",
   "cmd.fitToWindow": "Pencereye sığdır",
   "screen.size": "Ekran boyutu",
-  "master.target": "Hedef",
   "master.running": "Çalışıyor",
-  "master.displayOnly": "Yalnızca gösterim",
-  "master.noTarget": "Hedef yok"
+  "master.idle": "Etkinlik yok"
 }
