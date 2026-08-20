@@ -22,6 +22,9 @@ type TableCommands =
 [<AllowNullLiteral>]
 type ElementTableView(state: AppState, commands: TableCommands) =
 
+    /// PLC 를 여러 대 쓸 때만 보여 주는 칸
+    let mutable plcColumn: DataGridColumn = null
+
     let grid =
         DataGrid(
             AutoGenerateColumns = false,
@@ -59,6 +62,25 @@ type ElementTableView(state: AppState, commands: TableCommands) =
                             MinHeight = 26.0
                         )
                     combo.Bind(ComboBox.SelectedIndexProperty, twoWay path) |> ignore
+                    combo :> Control),
+                true
+            )
+        DataGridTemplateColumn(Header = header, CellTemplate = template, Width = DataGridLength width)
+
+    /// 어느 PLC 를 쓸지 고르는 칸. 목록은 셀을 그릴 때마다 지금 PLC 목록에서 가져온다.
+    let plcSelectColumn (header: string) (width: float) =
+        let template =
+            FuncDataTemplate<ElementVm>(
+                (fun vm _ ->
+                    let combo =
+                        ComboBox(
+                            ItemsSource = (state.Plcs |> List.map (fun l -> l.Id) |> List.toArray),
+                            Margin = Thickness(2.0, 1.0),
+                            FontFamily = Ui.monoFont,
+                            HorizontalAlignment = HorizontalAlignment.Stretch,
+                            MinHeight = 26.0
+                        )
+                    combo.Bind(ComboBox.SelectedItemProperty, twoWay "PlcId") |> ignore
                     combo :> Control),
                 true
             )
@@ -103,6 +125,8 @@ type ElementTableView(state: AppState, commands: TableCommands) =
         // '운전 화면 표시' 는 표에서 빼고 속성 창에만 둔다. 표는 주소와 동작에 집중한다.
         grid.Columns.Add(comboColumn (I18n.t "prop.type") "KindIndex" (ItemKind.all |> List.map I18n.kindLabel) 132.0)
         grid.Columns.Add(textColumn (I18n.t "prop.name") "Name" 190.0)
+        plcColumn <- plcSelectColumn (I18n.t "prop.plc") 92.0
+        grid.Columns.Add plcColumn
         grid.Columns.Add(textColumn (I18n.t "prop.device") "Device" 110.0)
         grid.Columns.Add(textColumn (I18n.t "prop.monitor") "MonitorDevice" 140.0)
         grid.Columns.Add(comboColumn (I18n.t "prop.action") "ActionIndex" (SwitchAction.all |> List.map I18n.actionLabel) 128.0)
@@ -113,6 +137,7 @@ type ElementTableView(state: AppState, commands: TableCommands) =
         grid.Columns.Add(textColumn (I18n.t "prop.width") "Width" 70.0)
         grid.Columns.Add(textColumn (I18n.t "prop.height") "Height" 70.0)
         grid.Columns.Add(commandColumn (I18n.t "cmd.runNow") 128.0)
+        plcColumn.IsVisible <- state.Plcs.Length > 1
 
         grid.SelectionChanged.Add(fun _ ->
             if not syncing then
@@ -138,6 +163,10 @@ type ElementTableView(state: AppState, commands: TableCommands) =
             for s in subscriptions do
                 s.Dispose()
             subscriptions.Clear()
+
+    /// PLC 목록이 바뀌면 PLC 칸을 보이거나 감춘다. (한 대만 쓰면 감춘다)
+    member _.RefreshPlcColumn() =
+        if not (isNull plcColumn) then plcColumn.IsVisible <- state.Plcs.Length > 1
 
     member _.Root: Control = grid :> Control
     member _.Grid = grid

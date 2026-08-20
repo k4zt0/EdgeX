@@ -6,11 +6,14 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="FakeXgtServer.fs" />
+    <Compile Include="FakeCnetPlc.fs" />
     <Compile Include="AddressTests.fs" />
     <Compile Include="ProjectIoTests.fs" />
     <Compile Include="LayoutTests.fs" />
     <Compile Include="XgtClientTests.fs" />
+    <Compile Include="CnetTests.fs" />
     <Compile Include="PlcServiceTests.fs" />
+    <Compile Include="MultiPlcTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />

@@ -94,10 +94,86 @@ module SwitchAction =
         | _ -> Toggle
 
 
+/// PLC 한 대에 붙는 방법. 이더넷(FEnet) 과 직렬(Cnet) 을 함께 쓸 수 있다.
+type PlcLinkKind =
+    /// 이더넷 FEnet (TCP)
+    | LinkEthernet
+    /// RS-232C Cnet — 1:1 직렬
+    | LinkRs232
+    /// RS-485 Cnet — 한 회선에 여러 대를 국번으로 구분해서 붙인다
+    | LinkRs485
+
+    member this.Code =
+        match this with
+        | LinkEthernet -> "ETHERNET"
+        | LinkRs232 -> "RS232"
+        | LinkRs485 -> "RS485"
+
+    /// 직렬 회선(Cnet) 인지. 이 둘은 프레임이 같고 회선만 다르다.
+    member this.IsSerial =
+        match this with
+        | LinkEthernet -> false
+        | LinkRs232
+        | LinkRs485 -> true
+
+
+[<RequireQualifiedAccess>]
+module PlcLinkKind =
+
+    let all = [ LinkEthernet; LinkRs232; LinkRs485 ]
+
+    let codes = all |> List.map (fun k -> k.Code)
+
+    let tryParse (s: string) =
+        match (if isNull s then "" else s.Trim().ToUpperInvariant()) with
+        | "ETHERNET"
+        | "FENET"
+        | "TCP" -> Some LinkEthernet
+        | "RS232"
+        | "RS-232"
+        | "RS232C"
+        | "CNET" -> Some LinkRs232
+        | "RS485"
+        | "RS-485"
+        | "RS422"
+        | "RS-422" -> Some LinkRs485
+        | _ -> None
+
+
+/// PLC 한 대. 이더넷이면 IP/포트를, 직렬이면 포트 이름·통신 속도·국번을 쓴다.
+/// 여러 대를 동시에 붙일 수 있고, 화면 요소마다 어느 PLC 를 쓸지 고른다.
+type PlcLink =
+    { /// 프로젝트 안에서만 쓰는 짧은 이름표 (PLC1, PLC2 ...). 화면 요소가 이 값으로 PLC 를 가리킨다.
+      Id: string
+      /// 사람이 보는 이름 (예: "1호기 반송")
+      Name: string
+      Kind: PlcLinkKind
+      /// 끄면 연결하지 않는다. (설정은 그대로 남는다)
+      Enabled: bool
+      // ---- 이더넷 ----
+      Ip: string
+      Port: int
+      // ---- 직렬 (RS-232C / RS-485) ----
+      /// COM3 / /dev/tty.usbserial-1410 처럼 OS 가 주는 포트 이름
+      SerialPort: string
+      Baud: int
+      DataBits: int
+      /// NONE / ODD / EVEN
+      Parity: string
+      /// 1 또는 2
+      StopBits: int
+      /// Cnet 국번 0~31. RS-485 는 이 번호로 여러 대를 구분한다.
+      Station: int
+      /// 이 PLC 만의 폴링 주기(ms)
+      CycleMs: int }
+
+
 /// 화면 요소 한 개. (기존 HmiItem 과 1:1 대응)
 type HmiItem =
     { Id: string
       Enabled: bool
+      /// 어느 PLC 를 쓰는지 (PlcLink.Id). 비어 있으면 첫 번째 PLC 를 쓴다.
+      PlcId: string
       /// 운전 화면에 카드로 띄울지. 꺼도 통합 스위치는 계속 지켜보고 폴링도 그대로 돈다.
       Visible: bool
       Kind: ItemKind
@@ -117,9 +193,12 @@ type HmiItem =
 /// ScreenWidth/ScreenHeight 는 v6 에 없던 항목이라 없으면 기본값을 쓴다.
 /// (v6 의 XmlSerializer 는 모르는 요소를 건너뛰므로 이 파일을 v6 에서도 그대로 열 수 있다.)
 type HmiProject =
-    { PlcIp: string
+    { /// v6 호환용 첫 이더넷 PLC 의 IP (Plcs 의 첫 이더넷 항목과 같게 유지한다)
+      PlcIp: string
       Port: int
       CycleMs: int
+      /// 붙일 PLC 목록. 이더넷·RS-232C·RS-485 를 섞어 여러 대를 함께 쓸 수 있다.
+      Plcs: PlcLink list
       Items: HmiItem list
       /// 배치할 수 있는 도면 크기 (스크롤 영역)
       ScreenWidth: int
@@ -142,8 +221,115 @@ module Limits =
     let defaultCycleMs = 300
     let defaultPort = 2004
     let defaultIp = "192.168.1.120"
+    /// 직렬(Cnet) 기본값 — XGB 내장 Cnet 출하 설정
+    let defaultBaud = 9600
+    let defaultDataBits = 8
+    let defaultParity = "NONE"
+    let defaultStopBits = 1
+    let defaultStation = 0
+    let maxStation = 31
+    /// 고를 수 있는 통신 속도 (XGB Cnet 지원 범위)
+    let bauds = [ 1200; 2400; 4800; 9600; 19200; 38400; 57600; 115200 ]
+    let parities = [ "NONE"; "ODD"; "EVEN" ]
     /// 한 프레임에서 읽을 수 있는 WORD 최대 개수 (XGT 사양)
     let maxWordsPerFrame = 16
+
+
+[<RequireQualifiedAccess>]
+module PlcLink =
+
+    /// 이더넷 PLC 기본값
+    let ethernet (id: string) =
+        { Id = id
+          Name = id
+          Kind = LinkEthernet
+          Enabled = true
+          Ip = Limits.defaultIp
+          Port = Limits.defaultPort
+          SerialPort = ""
+          Baud = Limits.defaultBaud
+          DataBits = Limits.defaultDataBits
+          Parity = Limits.defaultParity
+          StopBits = Limits.defaultStopBits
+          Station = Limits.defaultStation
+          CycleMs = Limits.defaultCycleMs }
+
+    /// 직렬(RS-232C / RS-485) PLC 기본값
+    let serial (id: string) (kind: PlcLinkKind) (station: int) =
+        { ethernet id with
+            Kind = kind
+            Ip = ""
+            Port = 0
+            Station = station }
+
+    let empty = ethernet "PLC1"
+
+    /// 이미 있는 목록과 겹치지 않는 다음 이름표 (PLC1, PLC2 ...)
+    let nextId (existing: PlcLink seq) =
+        let taken =
+            existing
+            |> Seq.map (fun l -> (if isNull l.Id then "" else l.Id.Trim().ToUpperInvariant()))
+            |> Set.ofSeq
+        let mutable n = 1
+        while taken.Contains("PLC" + string n) do
+            n <- n + 1
+        "PLC" + string n
+
+    let normalize (l: PlcLink) =
+        let id = (if isNull l.Id then "" else l.Id.Trim().ToUpperInvariant())
+        { l with
+            Id = (if String.IsNullOrWhiteSpace id then "PLC1" else id)
+            Name = (if isNull l.Name then "" else l.Name.Trim())
+            Ip = (if isNull l.Ip then "" else l.Ip.Trim())
+            Port = (if l.Port < 1 || l.Port > 65535 then Limits.defaultPort else l.Port)
+            SerialPort = (if isNull l.SerialPort then "" else l.SerialPort.Trim())
+            Baud = (if l.Baud < 300 then Limits.defaultBaud else l.Baud)
+            DataBits = (if l.DataBits <> 7 && l.DataBits <> 8 then Limits.defaultDataBits else l.DataBits)
+            Parity =
+                (let p = (if isNull l.Parity then "" else l.Parity.Trim().ToUpperInvariant())
+                 if List.contains p Limits.parities then p else Limits.defaultParity)
+            StopBits = (if l.StopBits >= 2 then 2 else 1)
+            Station = max 0 (min Limits.maxStation l.Station)
+            CycleMs = (if l.CycleMs < Limits.minCycleMs then Limits.defaultCycleMs else min Limits.maxCycleMs l.CycleMs) }
+
+    /// 화면에 보여 줄 이름. 이름을 비워 두면 이름표를 쓴다.
+    let label (l: PlcLink) =
+        if String.IsNullOrWhiteSpace l.Name then l.Id else l.Id + " · " + l.Name
+
+    /// 어디에 어떻게 붙는지 한 줄 요약 (툴바 / 트리 / 상태 표시줄)
+    let endpoint (l: PlcLink) =
+        match l.Kind with
+        | LinkEthernet -> sprintf "%s:%d" l.Ip l.Port
+        | LinkRs232
+        | LinkRs485 ->
+            sprintf
+                "%s %d-%d-%s-%d  국번 %d"
+                (if String.IsNullOrWhiteSpace l.SerialPort then "(포트 없음)" else l.SerialPort)
+                l.Baud
+                l.DataBits
+                (match l.Parity with
+                 | "ODD" -> "O"
+                 | "EVEN" -> "E"
+                 | _ -> "N")
+                l.StopBits
+                l.Station
+
+    /// 연결 전 검사. 첫 오류 메시지를 돌려준다.
+    let validate (l: PlcLink) : Result<unit, string> =
+        let blank (s: string) = String.IsNullOrWhiteSpace s
+        if blank l.Id then Error "PLC 이름표가 비어 있습니다."
+        else
+            match l.Kind with
+            | LinkEthernet ->
+                if blank l.Ip then Error(sprintf "%s: IP 주소가 비어 있습니다." (label l))
+                elif l.Port < 1 || l.Port > 65535 then Error(sprintf "%s: 포트 번호가 잘못되었습니다." (label l))
+                else Ok()
+            | LinkRs232
+            | LinkRs485 ->
+                if blank l.SerialPort then Error(sprintf "%s: 직렬 포트를 고르십시오." (label l))
+                elif l.Station < 0 || l.Station > Limits.maxStation then
+                    Error(sprintf "%s: 국번은 0~%d 입니다." (label l) Limits.maxStation)
+                else Ok()
 
 
 [<RequireQualifiedAccess>]
@@ -154,6 +340,7 @@ module Item =
     let empty =
         { Id = newId ()
           Enabled = true
+          PlcId = ""
           Visible = true
           Kind = Switch
           Name = "새 스위치"
@@ -222,6 +409,7 @@ module Item =
     let normalize (h: HmiItem) =
         let mn, mx = if h.Max < h.Min then h.Max, h.Min else h.Min, h.Max
         { h with
+            PlcId = (if isNull h.PlcId then "" else h.PlcId.Trim())
             Device = (if isNull h.Device then "" else h.Device.Trim().ToUpperInvariant())
             MonitorDevice = (if isNull h.MonitorDevice then "" else h.MonitorDevice.Trim().ToUpperInvariant())
             Name = (if isNull h.Name then "" else h.Name)
@@ -273,6 +461,7 @@ module Project =
         { PlcIp = Limits.defaultIp
           Port = Limits.defaultPort
           CycleMs = Limits.defaultCycleMs
+          Plcs = [ PlcLink.empty ]
           Items = []
           ScreenWidth = Limits.defaultScreenWidth
           ScreenHeight = Limits.defaultScreenHeight
@@ -364,10 +553,98 @@ module Project =
         { PlcIp = Limits.defaultIp
           Port = Limits.defaultPort
           CycleMs = Limits.defaultCycleMs
+          Plcs = [ PlcLink.empty ]
           Items = swItems @ [ numInput; numDisplay; text ]
           ScreenWidth = Limits.defaultScreenWidth
           ScreenHeight = Limits.defaultScreenHeight
           Hmi = HmiScreen.empty }
+
+    /// PLC 목록을 쓸 수 있는 상태로 만든다.
+    /// 비어 있으면 v6 파일처럼 PlcIp/Port/CycleMs 로 이더넷 한 대를 만들고,
+    /// 이름표가 겹치면 뒤에 온 쪽에 새 이름표를 준다.
+    let normalizePlcs (p: HmiProject) =
+        let source =
+            if p.Plcs.IsEmpty then
+                [ { PlcLink.empty with
+                      Ip = (if String.IsNullOrWhiteSpace p.PlcIp then Limits.defaultIp else p.PlcIp.Trim())
+                      Port = p.Port
+                      CycleMs = p.CycleMs } ]
+            else p.Plcs
+        let result = ResizeArray<PlcLink>()
+        for link in source do
+            let normalized = PlcLink.normalize link
+            let unique =
+                if result |> Seq.exists (fun l -> String.Equals(l.Id, normalized.Id, StringComparison.OrdinalIgnoreCase)) then
+                    { normalized with Id = PlcLink.nextId result }
+                else normalized
+            result.Add unique
+        List.ofSeq result
+
+    /// 요소가 가리키는 PLC. 이름표가 비었거나 없어진 PLC 를 가리키면 첫 번째 PLC 를 쓴다.
+    let resolvePlcId (plcs: PlcLink list) (plcId: string) =
+        let id = if isNull plcId then "" else plcId.Trim()
+        match plcs |> List.tryFind (fun l -> String.Equals(l.Id, id, StringComparison.OrdinalIgnoreCase)) with
+        | Some l -> l.Id
+        | None ->
+            match plcs with
+            | first :: _ -> first.Id
+            | [] -> ""
+
+    /// PLC 목록을 정리하고, 요소의 PLC 이름표도 실제로 있는 PLC 로 맞춘다.
+    let normalizeLinks (p: HmiProject) =
+        let plcs = normalizePlcs p
+        let items = p.Items |> List.map (fun h -> { h with PlcId = resolvePlcId plcs h.PlcId })
+        // v6(WinForms) 는 PlcIp/Port/CycleMs 만 읽으므로 첫 이더넷 PLC 를 그 자리에 그대로 둔다.
+        let firstEthernet = plcs |> List.tryFind (fun l -> l.Kind = LinkEthernet)
+        { p with
+            Plcs = plcs
+            Items = items
+            PlcIp = (match firstEthernet with Some l -> l.Ip | None -> p.PlcIp)
+            Port = (match firstEthernet with Some l -> l.Port | None -> p.Port)
+            CycleMs = (match plcs with first :: _ -> first.CycleMs | [] -> p.CycleMs) }
+
+    /// PLC 목록 전체 검사. 첫 오류 메시지를 돌려준다.
+    let validatePlcs (plcs: PlcLink list) : Result<unit, string> =
+        let enabled = plcs |> List.filter (fun l -> l.Enabled)
+        if enabled.IsEmpty then Error "연결할 PLC 가 없습니다. 적어도 한 대는 '사용' 으로 두십시오."
+        else
+            let firstError = enabled |> List.tryPick (fun l -> match PlcLink.validate l with Error m -> Some m | Ok() -> None)
+            match firstError with
+            | Some m -> Error m
+            | None ->
+                // 같은 직렬 회선에 같은 국번이 두 대 있으면 응답을 구분할 수 없다.
+                let serials =
+                    enabled
+                    |> List.filter (fun l -> l.Kind.IsSerial)
+                    |> List.map (fun l -> l.SerialPort.Trim().ToUpperInvariant(), l.Station, l)
+                let duplicate =
+                    serials
+                    |> List.tryPick (fun (port, station, l) ->
+                        if serials |> List.filter (fun (p2, s2, _) -> p2 = port && s2 = station) |> List.length > 1 then Some l
+                        else None)
+                match duplicate with
+                | Some l -> Error(sprintf "%s: 같은 회선(%s)에 국번 %d 가 두 번 있습니다." (PlcLink.label l) l.SerialPort l.Station)
+                | None ->
+                    // 같은 회선을 쓰면 통신 속도·패리티·정지 비트가 같아야 한다.
+                    let conflict =
+                        serials
+                        |> List.tryPick (fun (port, _, l) ->
+                            serials
+                            |> List.tryPick (fun (p2, _, other) ->
+                                if p2 = port
+                                   && (other.Baud <> l.Baud || other.Parity <> l.Parity || other.StopBits <> l.StopBits || other.DataBits <> l.DataBits)
+                                then Some(l, other)
+                                else None))
+                    match conflict with
+                    | Some(l, other) ->
+                        Error(
+                            sprintf
+                                "%s 와 %s 는 같은 회선(%s)을 쓰므로 통신 속도·패리티·정지 비트를 같게 맞추십시오."
+                                (PlcLink.label l)
+                                (PlcLink.label other)
+                                l.SerialPort
+                        )
+                    | None -> Ok()
 
     /// 폴링 주기에 읽어야 할 비트 / WORD 주소 목록
     let scanAddresses (items: HmiItem seq) =
@@ -388,6 +665,18 @@ module Project =
                     addUnique words h.Device
 
         List.ofSeq bits, List.ofSeq words
+
+    /// PLC 별 폴링 목록. 여러 대를 붙였을 때 각 회선이 제 주소만 읽게 나눈다.
+    let scanAddressesByPlc (plcs: PlcLink list) (items: HmiItem seq) =
+        let items = List.ofSeq items
+        plcs
+        |> List.filter (fun l -> l.Enabled)
+        |> List.map (fun link ->
+            let mine =
+                items
+                |> List.filter (fun h -> String.Equals(resolvePlcId plcs h.PlcId, link.Id, StringComparison.OrdinalIgnoreCase))
+            let bits, words = scanAddresses mine
+            link.Id, bits, words)
 
     /// '스위치 수량 추가'용 다음 M 주소 (원본 FindNextMAddress)
     let nextMAddress (items: HmiItem seq) =

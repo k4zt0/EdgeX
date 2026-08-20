@@ -22,6 +22,7 @@
     <Compile Include="ViewModels/AppState.fs" />
     <Compile Include="Views/Ui.fs" />
     <Compile Include="Views/Dialogs.fs" />
+    <Compile Include="Views/PlcDialog.fs" />
     <Compile Include="Views/CardFactory.fs" />
     <Compile Include="Views/RunCanvas.fs" />
     <Compile Include="Views/HmiParts.fs" />

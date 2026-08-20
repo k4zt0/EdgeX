@@ -7,6 +7,12 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Address.fs" />
+    <Compile Include="Link.fs" />
     <Compile Include="XgtClient.fs" />
+    <Compile Include="CnetClient.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- RS-232C / RS-485 직렬 통신 (Windows / macOS / Linux 공용) -->
+    <PackageReference Include="System.IO.Ports" Version="9.0.0" />
   </ItemGroup>
 </Project>

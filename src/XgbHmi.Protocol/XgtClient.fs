@@ -7,23 +7,6 @@ open System.Net.Sockets
 open System.Text
 open System.Threading
 
-/// PLC가 되돌려 준 XGT 오류 코드를 그대로 담는다.
-exception XgtProtocolException of message: string * code: int
-
-/// 통신 추적 한 줄. 화면 출력 창에서 실제 오간 내용을 그대로 보여 주기 위한 것.
-type XgtTraceKind =
-    | Tx
-    | Rx
-    | Note
-
-type XgtTrace =
-    { Kind: XgtTraceKind
-      /// 사람이 읽는 요약 (예: "READ WORD %MW100 x1")
-      Summary: string
-      /// 실제 바이트 (추적을 켰을 때만 채운다)
-      Hex: string
-      ElapsedMs: float }
-
 /// XGT FEnet 헤더 조합. 펌웨어/모듈 설정에 따라 다르므로 연결할 때 자동으로 시험한다.
 type internal HeaderProfile =
     { Company: string
@@ -268,59 +251,18 @@ type XgtClient(ip: string, port: int, timeoutMs: int) =
             let detail = if rb.Length >= 10 then readUInt16LE rb 8 else error
             raise (XgtProtocolException("PLC XGT WORD 쓰기 오류 0x" + detail.ToString "X4" + " (ErrorStatus=0x" + error.ToString "X4" + ")", detail))
 
-    /// XGB에서 M 비트 ON/OFF를 확실하게 처리하기 위해
-    /// %MX 직접 쓰기 대신 해당 %MW를 읽고 그 비트만 바꿔 WORD로 되쓴다. (v5 TOGGLE FIX)
-    /// M01008 -> MW100 bit8, M01009 -> MW100 bit9, M0100F -> MW100 bit15 ...
+    /// M 비트 쓰기는 이더넷과 직렬이 같은 규칙(WORD 읽고-고치고-쓰기)을 따라야 해서 공용 함수를 쓴다.
     let writeMBitByWord (address: string) (value: bool) =
-        let b = Address.parseBit address
-        if b.Area <> 'M' then raise (ArgumentException("M BIT 전용 함수입니다: " + address))
-
-        let mask = uint16 (1 <<< b.Bit)
-        let mutable lastRead = 0us
-        let mutable finished = false
-        let mutable attempt = 0
-
-        while not finished && attempt < 3 do
-            let beforeMap = readAreaWords 'M' [| b.Word |]
-            let ok, before = beforeMap.TryGetValue b.Word
-            if not ok then raise (IOException(address + " 쓰기 전 MW" + string b.Word + " 읽기 실패"))
-
-            let changed = if value then before ||| mask else before &&& (~~~mask)
-            trace
-                Note
-                (sprintf "%s RMW #%d: %s 0x%04X -> 0x%04X (bit%d %s)" address (attempt + 1) (Address.toXgtWord 'M' b.Word) before changed b.Bit (if value then "SET" else "CLEAR"))
-                ""
-                0.0
-            writeAreaWord 'M' b.Word changed
-            Thread.Sleep 20
-
-            let afterMap = readAreaWords 'M' [| b.Word |]
-            let ok2, after = afterMap.TryGetValue b.Word
-            if not ok2 then raise (IOException(address + " 쓰기 후 MW" + string b.Word + " 읽기 실패"))
-
-            lastRead <- after
-            trace
-                Note
-                (sprintf "%s READBACK #%d: %s = 0x%04X -> bit%d %s" address (attempt + 1) (Address.toXgtWord 'M' b.Word) after b.Bit (if (after &&& mask) <> 0us then "ON" else "OFF"))
-                ""
-                0.0
-            if ((after &&& mask) <> 0us) = value then finished <- true
-            else
-                Thread.Sleep 20
-                attempt <- attempt + 1
-
-        if not finished then
-            let lastState = (lastRead &&& mask) <> 0us
-            raise (
-                IOException(
-                    address
-                    + " "
-                    + (if value then "ON" else "OFF")
-                    + " 쓰기 후에도 실제 비트가 "
-                    + (if lastState then "ON" else "OFF")
-                    + "입니다. PLC 래더에서 같은 M비트를 다시 쓰고 있는지 확인하십시오."
-                )
-            )
+        MBit.writeByWord
+            (fun word ->
+                let map = readAreaWords 'M' [| word |]
+                match map.TryGetValue word with
+                | true, v -> Some v
+                | _ -> None)
+            (fun word v -> writeAreaWord 'M' word v)
+            (fun text -> trace Note text "" 0.0)
+            address
+            value
 
     /// 통신 추적(TX/RX 원문) 알림
     member _.Trace = traceEvent.Publish
@@ -457,3 +399,20 @@ type XgtClient(ip: string, port: int, timeoutMs: int) =
 
     interface IDisposable with
         member _.Dispose() = disposeSocket ()
+
+    /// 화면 쪽에서는 이더넷/직렬을 구분하지 않고 이 창구로만 쓴다.
+    interface IPlcLink with
+        member this.Connect() = this.Connect()
+        member this.Connected = this.Connected
+        member this.ProfileName = this.ProfileName
+        member this.NegotiationLog = this.NegotiationLog
+        member this.FrameCount = this.FrameCount
+        member this.ErrorCount = this.ErrorCount
+        member this.TraceEnabled
+            with get () = this.TraceEnabled
+            and set v = this.TraceEnabled <- v
+        member this.Trace = this.Trace
+        member this.ReadBits addresses = this.ReadBits addresses
+        member this.ReadWord address = this.ReadWord address
+        member this.WriteBit(address, value) = this.WriteBit(address, value)
+        member this.WriteWord(address, value) = this.WriteWord(address, value)

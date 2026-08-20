@@ -44,6 +44,8 @@ module ProjectIo =
             let id = str e "Id" ""
             if String.IsNullOrWhiteSpace id then Item.newId () else id
           Enabled = bool' e "Enabled" true
+          // v6 파일에는 없는 항목이다. 비어 있으면 첫 번째 PLC 를 쓴다.
+          PlcId = (str e "PlcId" "").Trim()
           // 이 항목이 없는 예전 파일은 지금까지처럼 전부 보이게 읽는다.
           Visible = bool' e "Visible" true
           Kind = kind
@@ -65,6 +67,7 @@ module ProjectIo =
             XElement(XName.Get "Id", h.Id),
             XElement(XName.Get "Enabled", (if h.Enabled then "true" else "false")),
             XElement(XName.Get "Visible", (if h.Visible then "true" else "false")),
+            XElement(XName.Get "PlcId", h.PlcId),
             XElement(XName.Get "Type", h.Kind.Code),
             XElement(XName.Get "Name", h.Name),
             XElement(XName.Get "Device", h.Device),
@@ -77,6 +80,59 @@ module ProjectIo =
             XElement(XName.Get "Width", string h.Width),
             XElement(XName.Get "Height", string h.Height)
         )
+
+    // ---------- PLC 목록 ----------
+    // v6 XmlSerializer 는 모르는 요소를 건너뛰므로 <Plcs> 를 붙여도 예전 프로그램에서 그대로 열린다.
+    // (v6 는 <PlcIp>/<Port>/<CycleMs> 만 보고 첫 이더넷 PLC 한 대로 동작한다)
+
+    let private parsePlc (e: XElement) : PlcLink =
+        let kind =
+            str e "Kind" "ETHERNET"
+            |> PlcLinkKind.tryParse
+            |> Option.defaultValue LinkEthernet
+        { Id = (str e "Id" "").Trim()
+          Name = str e "Name" ""
+          Kind = kind
+          Enabled = bool' e "Enabled" true
+          Ip = (str e "Ip" Limits.defaultIp).Trim()
+          Port = int' e "Port" Limits.defaultPort
+          SerialPort = (str e "SerialPort" "").Trim()
+          Baud = int' e "Baud" Limits.defaultBaud
+          DataBits = int' e "DataBits" Limits.defaultDataBits
+          Parity = str e "Parity" Limits.defaultParity
+          StopBits = int' e "StopBits" Limits.defaultStopBits
+          Station = int' e "Station" Limits.defaultStation
+          CycleMs = int' e "CycleMs" Limits.defaultCycleMs }
+        |> PlcLink.normalize
+
+    let private plcElement (l: PlcLink) =
+        XElement(
+            XName.Get "PlcLink",
+            XElement(XName.Get "Id", l.Id),
+            XElement(XName.Get "Name", l.Name),
+            XElement(XName.Get "Kind", l.Kind.Code),
+            XElement(XName.Get "Enabled", (if l.Enabled then "true" else "false")),
+            XElement(XName.Get "Ip", l.Ip),
+            XElement(XName.Get "Port", string l.Port),
+            XElement(XName.Get "SerialPort", l.SerialPort),
+            XElement(XName.Get "Baud", string l.Baud),
+            XElement(XName.Get "DataBits", string l.DataBits),
+            XElement(XName.Get "Parity", l.Parity),
+            XElement(XName.Get "StopBits", string l.StopBits),
+            XElement(XName.Get "Station", string l.Station),
+            XElement(XName.Get "CycleMs", string l.CycleMs)
+        )
+
+    let private parsePlcs (root: XElement) : PlcLink list =
+        match el root "Plcs" with
+        | None -> []
+        | Some e -> e.Elements(XName.Get "PlcLink") |> Seq.map parsePlc |> List.ofSeq
+
+    let private plcsElement (plcs: PlcLink list) =
+        let list = XElement(XName.Get "Plcs")
+        for l in plcs do
+            list.Add(plcElement l)
+        list
 
     // ---------- 터치스크린(HMI) 화면 ----------
     // v6 XmlSerializer 는 모르는 요소를 건너뛰므로 <Hmi> 를 붙여도 예전 프로그램에서 그대로 열린다.
@@ -205,13 +261,18 @@ module ProjectIo =
             if String.IsNullOrWhiteSpace ip then Limits.defaultIp else ip.Trim()
           Port = if port < 1 || port > 65535 then Limits.defaultPort else port
           CycleMs = if cycle < Limits.minCycleMs then Limits.defaultCycleMs else min Limits.maxCycleMs cycle
+          Plcs = parsePlcs root
           Items = items
           ScreenWidth = max Limits.minScreenWidth (min Limits.maxScreenSize screenWidth)
           ScreenHeight = max Limits.minScreenHeight (min Limits.maxScreenSize screenHeight)
           Hmi = parseHmi root }
+        // <Plcs> 가 없는 v6 파일은 PlcIp/Port/CycleMs 로 이더넷 한 대를 만든다.
+        |> Project.normalizeLinks
         |> Project.fitScreen
 
     let save (path: string) (p: HmiProject) =
+        // 저장하기 전에 PLC 목록을 정리한다. v6 가 읽는 PlcIp/Port/CycleMs 도 여기서 맞춰진다.
+        let p = Project.normalizeLinks p
         let items = XElement(XName.Get "Items")
         for h in p.Items do
             items.Add(itemElement h)
@@ -224,6 +285,7 @@ module ProjectIo =
         // v6 는 모르는 요소를 건너뛰므로 Items 뒤에 붙여도 호환된다.
         root.Add(XElement(XName.Get "ScreenWidth", string p.ScreenWidth))
         root.Add(XElement(XName.Get "ScreenHeight", string p.ScreenHeight))
+        root.Add(plcsElement p.Plcs)
         root.Add(hmiElement p.Hmi)
 
         let doc = XDocument()

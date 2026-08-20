@@ -26,6 +26,8 @@ type PropertyPanelView(state: AppState) =
     let visibleBox = CheckBox(Content = I18n.t "prop.visible", FontFamily = Ui.uiFont)
     let kindBox = ComboBox(ItemsSource = (ItemKind.all |> List.map I18n.kindLabel |> List.toArray), HorizontalAlignment = HorizontalAlignment.Stretch, FontFamily = Ui.uiFont)
     let nameBox = TextBox(FontFamily = Ui.uiFont)
+    /// 이 요소가 쓸 PLC. PLC 를 한 대만 쓰면 감춘다.
+    let plcBox = ComboBox(HorizontalAlignment = HorizontalAlignment.Stretch, FontFamily = Ui.uiFont)
     let deviceBox = TextBox(FontFamily = Ui.monoFont)
     let monitorBox = TextBox(FontFamily = Ui.monoFont)
     let actionBox = ComboBox(ItemsSource = (SwitchAction.all |> List.map I18n.actionLabel |> List.toArray), HorizontalAlignment = HorizontalAlignment.Stretch, FontFamily = Ui.uiFont)
@@ -55,6 +57,7 @@ type PropertyPanelView(state: AppState) =
         t.Margin <- Thickness(0.0, 12.0, 0.0, 4.0)
         t :> Control
 
+    let plcField = Ui.field (I18n.t "prop.plc") plcBox
     let monitorField = Ui.field (I18n.t "prop.monitor") monitorBox
     let actionField = Ui.field (I18n.t "prop.action") actionBox
     let minField = Ui.field (I18n.t "prop.min") minBox
@@ -68,6 +71,7 @@ type PropertyPanelView(state: AppState) =
             Ui.field (I18n.t "prop.type") kindBox :> Control
             Ui.field (I18n.t "prop.name") nameBox :> Control
             sectionTitle (I18n.t "prop.section.device")
+            plcField :> Control
             Ui.field (I18n.t "prop.device") deviceBox :> Control
             monitorField :> Control
             actionField :> Control
@@ -97,12 +101,25 @@ type PropertyPanelView(state: AppState) =
         // 텍스트와 통합 스위치는 제 주소를 쓰지 않는다.
         deviceBox.IsEnabled <- vm.Kind <> Text && vm.Kind <> MasterSwitch
 
+    /// PLC 목록이 바뀌면 콤보 상자도 따라간다.
+    let loadPlcs () =
+        let plcs = state.Plcs
+        plcBox.ItemsSource <- plcs |> List.map PlcLink.label |> List.toArray
+        // 한 대만 쓰면 고를 것이 없으니 칸을 감춘다.
+        plcField.IsVisible <- plcs.Length > 1
+
     let load () =
         suppress <- true
+        loadPlcs ()
         match state.Primary with
         | Some vm ->
             target <- Some vm
             container.Child <- form
+            plcBox.SelectedIndex <-
+                (let id = state.PlcIdOf vm
+                 match state.Plcs |> List.tryFindIndex (fun l -> String.Equals(l.Id, id, StringComparison.OrdinalIgnoreCase)) with
+                 | Some i -> i
+                 | None -> -1)
             enabledBox.IsChecked <- vm.Enabled
             visibleBox.IsChecked <- vm.Visible
             kindBox.SelectedIndex <- vm.KindIndex
@@ -136,6 +153,11 @@ type PropertyPanelView(state: AppState) =
                 vm.KindIndex <- kindBox.SelectedIndex
                 applyKindVisibility vm))
         nameBox.TextChanged.Add(fun _ -> edit (fun vm -> vm.Name <- nameBox.Text))
+        plcBox.SelectionChanged.Add(fun _ ->
+            edit (fun vm ->
+                let plcs = state.Plcs
+                if plcBox.SelectedIndex >= 0 && plcBox.SelectedIndex < plcs.Length then
+                    vm.PlcId <- plcs.[plcBox.SelectedIndex].Id))
         deviceBox.LostFocus.Add(fun _ -> edit (fun vm -> vm.Device <- deviceBox.Text))
         monitorBox.LostFocus.Add(fun _ -> edit (fun vm -> vm.MonitorDevice <- monitorBox.Text))
         actionBox.SelectionChanged.Add(fun _ -> edit (fun vm -> if actionBox.SelectedIndex >= 0 then vm.ActionIndex <- actionBox.SelectedIndex))
@@ -147,6 +169,7 @@ type PropertyPanelView(state: AppState) =
         hBox.ValueChanged.Add(fun _ -> edit (fun vm -> vm.Height <- numValue hBox))
 
         subscriptions.Add(state.SelectionChanged.Subscribe(fun () -> load ()))
+        subscriptions.Add(state.PlcsChanged.Subscribe(fun () -> load ()))
 
         // 캔버스에서 끌어 옮기면 X/Y/W/H 칸도 즉시 따라온다.
         subscriptions.Add(

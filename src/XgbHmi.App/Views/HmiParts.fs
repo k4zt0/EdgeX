@@ -139,18 +139,18 @@ let private scaleOf (vm: HmiPartVm) (t: ElementVm) =
 
 /// 연결한 요소의 WORD 값을 부호까지 살펴 정수로 읽는다.
 let private wordValue (status: CardFactory.RuntimeStatus) (t: ElementVm) =
-    match status.WordOf t.Device with
+    match status.WordOf t.PlcId t.Device with
     | Some raw -> Some(if t.Min < 0 then int (int16 raw) else int raw)
     | None -> None
 
 /// 스위치가 실제로 돌아온 상태. 상태확인 디바이스가 있으면 그쪽을 먼저 본다.
 /// (운전 화면 카드의 liveBit 과 같은 규칙)
 let private liveBit (status: CardFactory.RuntimeStatus) (t: ElementVm) =
-    if String.IsNullOrWhiteSpace t.MonitorDevice then status.BitOf t.Device
+    if String.IsNullOrWhiteSpace t.MonitorDevice then status.BitOf t.PlcId t.Device
     else
-        match status.BitOf t.MonitorDevice with
+        match status.BitOf t.PlcId t.MonitorDevice with
         | Some v -> Some v
-        | None -> status.BitOf t.Device
+        | None -> status.BitOf t.PlcId t.Device
 
 // ---------------------------------------------------------------------------
 //  아날로그 계기 (바늘이 도는 원형 미터)
@@ -515,7 +515,7 @@ let create (p: Palette) (background: string) (vm: HmiPartVm) (host: PartHost) : 
                 caption.Foreground <- Ui.brush dim
             | Some t ->
                 shell.BorderBrush <- Ui.brush (orElse edge vm.BorderColor)
-                let fault = status.CommFault || t.Fault.IsSome
+                let fault = status.CommFault t.PlcId || t.Fault.IsSome
                 let live = liveBit status t
                 // OFF 버튼은 비트가 꺼져 있을 때가 '지금 상태' 다. (운전 화면 카드와 같은 규칙)
                 lastOn <-
@@ -619,7 +619,7 @@ let create (p: Palette) (background: string) (vm: HmiPartVm) (host: PartHost) : 
                 track.BorderBrush <- Ui.brush p.Warn
                 nameLabel.Text <- I18n.t "hmi.needTarget"
             | Some t ->
-                let fault = status.CommFault || t.Fault.IsSome
+                let fault = status.CommFault t.PlcId || t.Fault.IsSome
                 let live = liveBit status t
                 let isOn = live = Some true
                 applyKnob isOn
@@ -737,7 +737,7 @@ let create (p: Palette) (background: string) (vm: HmiPartVm) (host: PartHost) : 
                 shell.BorderBrush <- Ui.brush p.Warn
                 lastValue <- None
             | Some t ->
-                let fault = status.CommFault || t.Fault.IsSome
+                let fault = status.CommFault t.PlcId || t.Fault.IsSome
                 shell.BorderBrush <- Ui.brush (if fault then p.Error else orElse edge vm.BorderColor)
                 match wordValue status t with
                 | Some v ->
@@ -857,7 +857,7 @@ let create (p: Palette) (background: string) (vm: HmiPartVm) (host: PartHost) : 
                 subText.Text <- ""
                 caption.Text <- I18n.t "hmi.needTarget"
             | Some t ->
-                let fault = status.CommFault || t.Fault.IsSome
+                let fault = status.CommFault t.PlcId || t.Fault.IsSome
                 face.ArcColor <- (if fault then p.Error else orElse p.Accent vm.OnColor)
                 // 손으로 돌리는 중이면 그 바늘을 그대로 둔다.
                 if not dragging then
@@ -928,7 +928,7 @@ let create (p: Palette) (background: string) (vm: HmiPartVm) (host: PartHost) : 
                 dial.Position <- None
                 caption.Text <- I18n.t "hmi.needTarget"
             | Some t ->
-                let fault = status.CommFault || t.Fault.IsSome
+                let fault = status.CommFault t.PlcId || t.Fault.IsSome
                 match wordValue status t with
                 | Some v ->
                     position <- max 0 (min (count - 1) v)
@@ -1008,7 +1008,7 @@ let create (p: Palette) (background: string) (vm: HmiPartVm) (host: PartHost) : 
                 triangle.Fill <- Ui.brush dim
                 shell.BorderBrush <- Ui.brush p.Warn
             | Some t ->
-                let fault = status.CommFault || t.Fault.IsSome
+                let fault = status.CommFault t.PlcId || t.Fault.IsSome
                 lastValue <- wordValue status t
                 triangle.Fill <- Ui.brush (if fault then p.Error else accent)
                 shell.BorderBrush <- Ui.brush (orElse "#00000000" vm.BorderColor)
@@ -1068,7 +1068,7 @@ let create (p: Palette) (background: string) (vm: HmiPartVm) (host: PartHost) : 
                 caption.Foreground <- Ui.brush dim
             | Some t ->
                 shell.BorderBrush <- Ui.brush (orElse edge vm.BorderColor)
-                let fault = status.CommFault || t.Fault.IsSome
+                let fault = status.CommFault t.PlcId || t.Fault.IsSome
                 // 지금 값이 이 버튼의 값과 같으면 '고른 상태' 로 점등한다.
                 let current = wordValue status t
                 paint (current = Some vm.WriteValue) fault
@@ -1150,14 +1150,14 @@ let create (p: Palette) (background: string) (vm: HmiPartVm) (host: PartHost) : 
                 shell.BorderBrush <- Ui.brush p.Warn
             | Some t ->
                 shell.BorderBrush <- Ui.brush (orElse edge vm.BorderColor)
-                let fault = status.CommFault || t.Fault.IsSome
+                let fault = status.CommFault t.PlcId || t.Fault.IsSome
                 let onColor = orElse p.On vm.OnColor
                 let offColor = mix background ink 0.16
                 for i in 0 .. count - 1 do
                     // 연결한 요소의 주소에서 i 만큼 뒤의 비트. WORD 경계를 넘으면 다음 WORD 로 간다.
                     let address =
                         try Some(Address.offsetBit t.Device i) with _ -> None
-                    let live = address |> Option.bind status.BitOf
+                    let live = address |> Option.bind (status.BitOf t.PlcId)
                     let dot = lamps.[i]
                     if fault then
                         dot.Background <- Ui.brush p.Error
@@ -1232,7 +1232,7 @@ let create (p: Palette) (background: string) (vm: HmiPartVm) (host: PartHost) : 
                 valueText.Foreground <- Ui.brush dim
                 track.BorderBrush <- Ui.brush p.Warn
             | Some t ->
-                let fault = status.CommFault || t.Fault.IsSome
+                let fault = status.CommFault t.PlcId || t.Fault.IsSome
                 track.BorderBrush <- Ui.brush (if fault then p.Error else orElse edge vm.BorderColor)
                 fill.Background <- Ui.brush (if fault then p.Error else orElse p.Accent vm.OnColor)
                 let lo, hi = scaleOf vm t

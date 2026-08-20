@@ -1,9 +1,12 @@
 # XGB/XGT HMI Designer — 크로스플랫폼 에디션
 
-LS ELECTRIC **XGB(MK) / XGT FEnet** PLC용 HMI 디자이너 겸 운전 화면입니다.
+LS ELECTRIC **XGB(MK) / XGT** PLC용 HMI 디자이너 겸 운전 화면입니다.
+**이더넷(FEnet) · RS-232C · RS-485(Cnet)** 로 붙을 수 있고, **여러 대를 동시에** 제어합니다.
 기존 Windows 전용 C#/WinForms v6 판을 **F# + Avalonia**로 다시 만들어 **Windows / macOS / Linux**에서 같은 실행 파일 구조로 동작합니다.
 
-* 통신 동작(프레임 바이트, 토글 절차, M비트 Read‑Modify‑Write)은 v6와 **동일**합니다.
+* 이더넷 통신 동작(프레임 바이트, 토글 절차, M비트 Read‑Modify‑Write)은 v6와 **동일**합니다.
+* 직렬(Cnet)도 주소 해석과 M비트 Read‑Modify‑Write 규칙을 이더넷과 **똑같이** 따릅니다. 프레임만 XGT Cnet ASCII 로 바뀝니다.
+* PLC 를 여러 대 등록하고 화면 요소마다 어느 PLC 를 쓸지 고를 수 있습니다. 회선마다 제 스레드로 폴링합니다.
 * 프로젝트 파일(`r004_hmi_project.xml`)은 v6와 **완전히 호환**됩니다. 서로 열고 저장할 수 있습니다.
 * UI는 XG5000 / XP Builder / GT Designer / GX Works 계열 엔지니어링 툴 배치로 전면 재작업했습니다.
 * 테마 6종, 언어 20종(한국어·영어·일본어 포함)을 지원합니다.
@@ -84,8 +87,11 @@ XG5000 계열 도킹 배치를 따릅니다.
 운전 중에 늘 쓰는 것만 밖에 두고, 화면을 고칠 때 쓰는 것은 **`편집 도구 ▾`** 버튼 하나에 모았습니다.
 
 ```
-PLC IP [ ] 포트 [ ] 주기 [ ] [연결] [PLC 쓰기 허용] │ [편집 도구 ▾] │ [창에 맞추기] − 100% ＋ 1:1
+PLC [이더넷 FEnet 192.168.1.120:2004] 주기 [ ] [연결] [연결 해제] [PLC 쓰기 허용] │ [편집 도구 ▾] │ [창에 맞추기] − 100% ＋ 1:1
 ```
+
+맨 앞의 **PLC** 버튼을 누르면 **PLC 통신 설정** 창이 열립니다. 여러 대를 등록하면 버튼에 `PLC 3대 · PLC1 PLC2 PLC3` 처럼 요약이 뜹니다.
+운전 중에는 설정을 바꿀 수 없으므로 먼저 **연결 해제** 를 누르십시오.
 
 `편집 도구 ▾` 안에 들어 있는 것:
 
@@ -415,13 +421,40 @@ PLC IP [ ] 포트 [ ] 주기 [ ] [연결] [PLC 쓰기 허용] │ [편집 도구
 
 ## 4. PLC 연결과 안전
 
-1. 툴바에 PLC IP / 포트(기본 2004) / 주기(ms)를 입력하고 **연결**. 끊을 때는 옆의 **연결 해제**.
-2. 연결 시 XGT 헤더 조합 8가지(LSIS-XGT·LGIS-GLOFA × Slot0/1 × BCC 사용/미사용)를 순서대로 자동 시험하고,
-   성공한 조합을 상태 표시줄 `헤더 프로필` 에 표시합니다. 실패 내역은 출력 창에 남습니다.
+1. 툴바의 **PLC** 버튼으로 붙일 PLC 를 등록하고, 주기(ms)를 정한 뒤 **연결**. 끊을 때는 **연결 해제**.
+2. 이더넷은 연결 시 XGT 헤더 조합 8가지(LSIS-XGT·LGIS-GLOFA × Slot0/1 × BCC 사용/미사용)를,
+   직렬은 BCC 사용/미사용 2가지를 순서대로 자동 시험하고 성공한 조합을 상태 표시줄에 표시합니다. 실패 내역은 출력 창에 남습니다.
 3. 쓰기는 **`PLC 쓰기 허용`** 을 켜고 확인 대화상자에 동의해야만 열립니다. 상태 표시줄에 빨간 `쓰기 허용됨` 배지가 뜹니다.
 4. 연결을 끊으면 쓰기 허용은 자동으로 잠깁니다.
 
 > ⚠ 실제 설비가 움직입니다. 설비를 **정지·격리한 상태**에서만 시험하십시오.
+
+![PLC 통신 설정 — 직렬](docs/screenshots/plc-serial-dark-ko.png)
+
+### 연결 방식 — 이더넷 / RS-232C / RS-485
+
+| 방식 | 프로토콜 | 입력하는 것 | 비고 |
+|---|---|---|---|
+| 이더넷 FEnet | XGT 전용 프레임(TCP 2004) | IP · 포트 | 기존 v6 와 같은 바이트 |
+| RS-232C Cnet | XGT 전용 프레임(ASCII) | 직렬 포트 · 통신 속도 · 데이터/정지 비트 · 패리티 · 국번 | 1:1 |
+| RS-485 Cnet | 같음 | 같음 | 한 회선에 여러 대. **국번**으로 구분 |
+
+* 직렬 포트 이름은 OS 가 주는 그대로입니다. Windows `COM3`, macOS `/dev/tty.usbserial-1410`, Linux `/dev/ttyUSB0`.
+  **검색된 포트** 목록에서 고르면 자동으로 채워지고, 목록에 없으면 직접 적어도 됩니다.
+* 직렬 프레임은 `ENQ 국번 R SS 블록수 이름길이 %MW100 EOT BCC` 형태(개별 읽기 RSS / 개별 쓰기 WSS)입니다.
+  명령 글자가 대문자면 BCC 를 붙이고, 소문자면 붙이지 않습니다.
+* **RS-485 한 회선에 여러 대**를 붙이면 회선 하나를 나눠 쓰므로 요청을 자동으로 한 줄로 세웁니다(반이중).
+  같은 회선의 PLC 는 통신 속도·데이터 비트·패리티·정지 비트를 같게 맞춰야 하고 국번은 서로 달라야 합니다. 어긋나면 연결 전에 막습니다.
+
+### PLC 여러 대 제어
+
+1. 툴바 **PLC** → **PLC 추가** 로 대수를 늘립니다. 이름표(`PLC1`, `PLC2` …)는 자동으로 붙고, 이름(`1호기 반송`)은 따로 적을 수 있습니다.
+2. 화면 요소마다 쓸 PLC 를 고릅니다. 표의 **PLC** 칸이나 속성 창의 **PLC** 항목에서 바꿉니다. (PLC 가 한 대면 감춰집니다)
+3. **연결** 을 누르면 등록한 PLC 를 한꺼번에 붙입니다. 회선마다 제 스레드로 폴링하므로 한 대가 느려도 다른 대는 그대로 돕니다.
+4. 한 대가 못 붙거나 도중에 끊겨도 나머지로 계속 운전합니다. 그 PLC 를 쓰는 카드만 빨간색으로 점등되고,
+   상태 표시줄에 `PLC1 ● PLC2 ✖` 처럼 회선별 상태가 뜹니다. 출력 창의 기록에는 `[PLC2]` 처럼 어느 회선인지 붙습니다.
+5. **사용** 을 끄면 설정은 남기고 연결만 건너뜁니다.
+6. 킬 스위치(전체 종료)는 등록한 **모든 PLC** 의 조작 가능한 비트를 끕니다.
 
 ### 주소 표기 (v6 규칙 그대로)
 
@@ -453,15 +486,18 @@ src/
     Assets/lang/*.json
   XgbHmi.Protocol/    PLC 통신 (UI 의존 없음)
     Address.fs        XG5000 표기 해석 (10진 WORD + 16진 BIT)
-    XgtClient.fs      XGT FEnet TCP 클라이언트
+    Link.fs           통신 창구(IPlcLink) · 추적 · M비트 Read-Modify-Write 공용 규칙
+    XgtClient.fs      XGT FEnet TCP 클라이언트 (이더넷)
+    CnetClient.fs     XGT Cnet ASCII 클라이언트 (RS-232C / RS-485, 회선 공유·국번)
   XgbHmi.App/         Avalonia 데스크톱 앱
     Themes/           팔레트 6종 + 컨트롤 스타일(Controls.axaml)
-    Services/         테마 적용, 설정 저장, PLC 연결/폴링 서비스
+    Services/         테마 적용, 설정 저장, PLC 여러 대 연결/폴링 서비스
     ViewModels/       요소 편집 모델(ElementVm), 부품 편집 모델(HmiPartVm), 프로젝트 상태(AppState)
     Views/            메인 창, 캔버스, 표, 트리, 속성, 출력, 대화상자
+                      PlcDialog.fs — PLC 통신 설정 창 (이더넷 / RS-232C / RS-485)
                       HmiParts.fs / HmiCanvas.fs / HmiDesigner.fs — 터치패널 작화
-tests/XgbHmi.Tests/   가짜 XGT 서버로 프레임까지 검증하는 테스트 64개
-tools/ShotHarness/    창을 PNG 로 렌더하는 UI 확인 도구 (--hmi / --tab:N / --gauge:<부품id> 조작 점검)
+tests/XgbHmi.Tests/   가짜 XGT 서버 / 가짜 Cnet 회선으로 프레임까지 검증하는 테스트 99개
+tools/ShotHarness/    창을 PNG 로 렌더하는 UI 확인 도구 (--hmi / --tab:N / --plc / --live / --gauge:<부품id>)
 tools/FakePlc/        실제 설비 없이 시험하는 가짜 XGB/XGT PLC (아래 참조)
 legacy/               기존 Windows 전용 C#/WinForms v6 소스와 이력 문서 (참고용 보관)
 ```
@@ -479,6 +515,16 @@ dotnet run --project tools/FakePlc -- r004_hmi_project.xml 2004
 
 앱에서 PLC IP 를 `127.0.0.1` 로 두고 연결하면 됩니다. `127.0.0.1` 은 이 PC 안에서만 도는 주소라 실제 설비로는 아무것도 나가지 않습니다.
 
+**여러 대를 시험하려면** 포트를 달리해 두 번 띄우고, PLC 설정에 `127.0.0.1:2004` 와 `127.0.0.1:2005` 두 대를 등록하면 됩니다.
+
+```bash
+dotnet run --project tools/FakePlc -- r004_hmi_project.xml 2004 &
+dotnet run --project tools/FakePlc -- r004_hmi_project.xml 2005 &
+```
+
+직렬(Cnet)은 실제 포트가 있어야 하므로 가짜 PLC 대신 자동 테스트(`tests/XgbHmi.Tests/FakeCnetPlc.fs`)로
+프레임과 국번 분리를 확인합니다. 실제 회선은 USB‑직렬 변환기를 꽂고 **검색된 포트** 에서 골라 시험하십시오.
+
 ### 빌드와 테스트
 
 ```bash
@@ -490,6 +536,10 @@ dotnet test tests/XgbHmi.Tests
 연결 시험 프레임, M비트 Read‑Modify‑Write, `%PX` 개별 비트 쓰기, WORD 리틀엔디안 인코딩,
 16 WORD 상한, v6 XML 읽기/쓰기 호환성(터치패널 `<Hmi>` 왕복 포함)을 바이트 단위로 확인하고,
 정렬 계산(겹침 없음·순서 유지·간격 균등)과 출력 창 기록(값 변화, TX/RX 추적, 스캔 요약)까지 함께 검사합니다.
+
+직렬(Cnet)은 가짜 회선(`FakeCnetPlc.fs`)에 붙여 ASCII 프레임 바이트·BCC·NAK 오류 코드,
+M비트 Read‑Modify‑Write, **한 회선에 국번이 다른 여러 대**가 서로 값이 새지 않는지까지 확인합니다.
+여러 대 제어는 가짜 PLC 두 대를 띄워 회선별 캐시 분리·회선별 쓰기·한 대만 죽었을 때의 동작을 검사합니다.
 
 `src/XgbHmi.Core/Layout.fs` 의 정렬 계산은 순수 함수라 화면 없이도 그대로 시험할 수 있고,
 `tools/ShotHarness` 는 창을 헤드리스로 렌더해 PNG 로 저장하거나(`--drag` 옵션) 마우스 입력을 흘려
@@ -518,6 +568,9 @@ dotnet test tests/XgbHmi.Tests
 | 요소 종류 | 스위치 · 램프 · 숫자입력 · 숫자표시 · 텍스트 | **스위치/램프** · **통합 스위치** 추가 |
 | 스위치 동작 | 토글 · ON · OFF · 순간 · ON/OFF | ON/OFF 를 없앤 4종. 예전 파일의 `ON/OFF` 는 토글로 읽음 |
 | 상태 표시 | 글자와 색 | 동작 중인 버튼·램프 점등, 오류는 빨간색 점등 |
-| 검증 | 없음 | 자동 테스트 57개 |
+| 검증 | 없음 | 자동 테스트 99개 |
+| 통신 방식 | 이더넷 FEnet 만 | **이더넷 FEnet · RS-232C Cnet · RS-485 Cnet** |
+| PLC 대수 | 한 대 | **여러 대 동시** (요소마다 쓸 PLC 선택, 회선마다 제 스레드로 폴링) |
 
 프로젝트 XML, 통신 프레임, 주소 규칙, 안전 잠금 동작은 그대로입니다.
+PLC 목록(`<Plcs>`)과 요소의 `<PlcId>` 는 v6 가 모르는 항목이라 건너뛰므로, v6 는 지금까지처럼 `<PlcIp>` 의 이더넷 한 대로 그 파일을 엽니다.

@@ -149,6 +149,28 @@ type HmiCanvasView(state: AppState, host: HmiCanvasHost) as this =
         if String.IsNullOrWhiteSpace id then None
         else state.Elements |> Seq.tryFind (fun e -> e.Id = id)
 
+    /// 이 캔버스가 맡은 PLC 이름표. 비어 있으면 패널 전체를 그린다.
+    let mutable plcFilter = ""
+
+    /// 부품이 가리키는 요소가 어느 PLC 에 붙어 있는지. 요소가 PLC 를 고르지 않았으면 첫 PLC 다.
+    let partPlcId (vm: HmiPartVm) =
+        match resolveElement vm.TargetId with
+        | None -> ""
+        | Some e ->
+            if not (String.IsNullOrWhiteSpace e.PlcId) then e.PlcId
+            else
+                match state.Plcs with
+                | first :: _ -> first.Id
+                | [] -> ""
+
+    /// PLC 별 창에서는 그 PLC 를 쓰는 부품만 그린다.
+    /// 대상이 없는 부품(글자·시계 같은 것)은 어느 창에나 그대로 둔다.
+    let includePart (vm: HmiPartVm) =
+        if String.IsNullOrWhiteSpace plcFilter then true
+        else
+            let id = partPlcId vm
+            String.IsNullOrWhiteSpace id || String.Equals(id, plcFilter, StringComparison.OrdinalIgnoreCase)
+
     let partHost: HmiParts.PartHost =
         { Cards = host.Cards
           Resolve = resolveElement
@@ -528,6 +550,12 @@ type HmiCanvasView(state: AppState, host: HmiCanvasHost) as this =
             autoFit <- v
             if v then fitToWindow ()
 
+    /// 이 캔버스가 맡은 PLC. 넣으면 그 PLC 를 쓰는 부품만 그린다. (PLC 별 HMI 창)
+    /// 바꾼 뒤에는 Rebuild() 를 불러야 화면에 반영된다.
+    member _.PlcFilter
+        with get () = plcFilter
+        and set (v: string) = plcFilter <- (if isNull v then "" else v.Trim())
+
     member _.ZoomChanged = zoomChanged.Publish
 
     member _.Zoom
@@ -562,11 +590,12 @@ type HmiCanvasView(state: AppState, host: HmiCanvasHost) as this =
         backdrop.Palette <- palette
         backdrop.ShowGrid <- (showGrid && editMode)
         for vm in state.HmiParts do
-            let v = HmiParts.create palette (panelBackground ()) vm partHost
-            Canvas.SetLeft(v.Root, float vm.X)
-            Canvas.SetTop(v.Root, float vm.Y)
-            partCanvas.Children.Add v.Root
-            visuals.[vm.Id] <- v
+            if includePart vm then
+                let v = HmiParts.create palette (panelBackground ()) vm partHost
+                Canvas.SetLeft(v.Root, float vm.X)
+                Canvas.SetTop(v.Root, float vm.Y)
+                partCanvas.Children.Add v.Root
+                visuals.[vm.Id] <- v
         applyPanelSize ()
         refreshSelectionVisual ()
         match lastStatus with
@@ -580,20 +609,22 @@ type HmiCanvasView(state: AppState, host: HmiCanvasHost) as this =
             partCanvas.Children.Remove old.Root |> ignore
             visuals.Remove vm.Id |> ignore
         | _ -> ()
-        // 겹침 순서를 지키려고 제자리에 다시 꽂는다.
-        let index = state.HmiParts.IndexOf vm
-        let v = HmiParts.create palette (panelBackground ()) vm partHost
-        Canvas.SetLeft(v.Root, float vm.X)
-        Canvas.SetTop(v.Root, float vm.Y)
-        if index >= 0 && index < partCanvas.Children.Count then
-            partCanvas.Children.Insert(index, v.Root)
-        else
-            partCanvas.Children.Add v.Root
-        visuals.[vm.Id] <- v
+        // 다른 PLC 를 쓰게 바뀌었으면 이 창에서는 빼고 끝낸다.
+        if includePart vm then
+            // 겹침 순서를 지키려고 제자리에 다시 꽂는다.
+            let index = state.HmiParts.IndexOf vm
+            let v = HmiParts.create palette (panelBackground ()) vm partHost
+            Canvas.SetLeft(v.Root, float vm.X)
+            Canvas.SetTop(v.Root, float vm.Y)
+            if index >= 0 && index < partCanvas.Children.Count then
+                partCanvas.Children.Insert(index, v.Root)
+            else
+                partCanvas.Children.Add v.Root
+            visuals.[vm.Id] <- v
+            match lastStatus with
+            | Some s -> v.Refresh s
+            | None -> ()
         refreshSelectionVisual ()
-        match lastStatus with
-        | Some s -> v.Refresh s
-        | None -> ()
 
     /// 부품 위치/크기만 바뀌었을 때
     member _.UpdateBounds(vm: HmiPartVm) =

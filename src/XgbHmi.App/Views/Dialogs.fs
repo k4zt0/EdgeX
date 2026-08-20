@@ -44,6 +44,9 @@ let private shell (owner: Window) (caption: string) (body: Control) (width: floa
     win.Content <- root
     win
 
+/// 같은 모양의 대화상자 창을 다른 화면(PLC 설정 등)에서도 쓴다.
+let panelWindow (owner: Window) (caption: string) (body: Control) (width: float) = shell owner caption body width
+
 let private messageIcon (kind: string) =
     let p = ThemeService.current ()
     let glyph, color =

@@ -21,6 +21,28 @@ open XgbHmi.App.ViewModels
 
 type private LogRecord = { Level: LogLevel; Message: string }
 
+/// [시험용] 마지막으로 띄운 HMI 창. 창을 따로 띄우므로 헤드리스 촬영 도구(tools/ShotHarness)가
+/// 이 창을 잡을 방법이 달리 없다. 앱 동작에는 쓰지 않는다.
+let mutable hmiWindowForTools: Window = null
+
+/// 운전 중에 띄우는 터치 패널 창 하나.
+/// PLC 를 여러 대 붙였으면 PLC 별로 창을 따로 띄워 동시에 조작할 수 있다.
+type private HmiWindowRef =
+    { Window: Window
+      Canvas: HmiCanvasView
+      /// 아래 상태 표시줄
+      Status: TextBlock
+      /// 위 띠 가운데 — 붙어 있는 PLC 목록
+      Plcs: StackPanel
+      /// 위 띠 왼쪽 — 이 창이 맡은 PLC
+      Owner: TextBlock
+      /// 위 띠 오른쪽 — 지금 조작이 나가는 PLC
+      Control: TextBlock
+      /// 이 창이 맡은 PLC 이름표. 비어 있으면 패널 전체를 띄운 창이다.
+      PlcId: string
+      /// 폴링마다 다시 그리지 않도록 마지막으로 그린 PLC 목록을 기억한다.
+      mutable PlcsKey: string }
+
 /// 창과 함께 '화면 다시 만들기' 함수를 돌려준다. (테마/언어 전환 경로 검증용)
 let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
 
@@ -49,9 +71,11 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     let mutable canvasHost: CanvasHost option = None
     /// HMI 탭(터치스크린 작화)과 운전 중에 따로 띄우는 HMI 창
     let mutable hmiDesigner: HmiDesignerView = null
-    let mutable hmiWindow: Window = null
-    let mutable hmiWindowCanvas: HmiCanvasView = null
-    let mutable hmiWindowStatus: TextBlock = null
+    /// 지금 떠 있는 터치 패널 창들. (패널 전체 창 + PLC 별 창)
+    let hmiWindows = ResizeArray<HmiWindowRef>()
+    /// 지금(또는 방금) 조작한 PLC 이름표와 요소 이름
+    let mutable controlPlcId = ""
+    let mutable controlName = ""
     let mutable tableView: ElementTableView = null
     let mutable treeView: ProjectTreeView = null
     let mutable propertyView: PropertyPanelView = null
@@ -74,8 +98,8 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     let mutable statusItems: TextBlock = null
     let mutable statusGeometry: TextBlock = null
     let mutable statusWrite: Border = null
-    let mutable ipBox: TextBox = null
-    let mutable portBox: NumericUpDown = null
+    /// PLC 설정 창을 여는 툴바 버튼. 지금 붙는 PLC 를 짧게 보여 준다.
+    let mutable plcButton: Button = null
     let mutable cycleBox: NumericUpDown = null
     let mutable connectButton: Button = null
     let mutable disconnectButton: Button = null
@@ -89,6 +113,8 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     let mutable titleText: TextBlock = null
 
     let mutable rebuildUi: unit -> unit = fun () -> ()
+    /// 툴바의 PLC 버튼 글자를 지금 목록에 맞춘다. (툴바를 만들 때 실제 함수가 들어간다)
+    let mutable updatePlcButton: unit -> unit = fun () -> ()
     let mutable suppressWriteToggle = false
 
     // ---------- 로그 ----------
@@ -130,6 +156,93 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                 I18n.tf "status.items" [| box state.Elements.Count |]
                 + (if selected > 0 then "   ·   " + I18n.tf "status.selected" [| box selected |] else "")
 
+    /// 프로젝트에서 '사용' 으로 둔 PLC 목록
+    let enabledPlcs () = state.Plcs |> List.filter (fun l -> l.Enabled)
+
+    /// 그 PLC 가 지금 살아서 폴링되고 있는지.
+    /// 아예 붙지 못한 PLC 는 회선 목록에서 빠지므로, 없으면 죽은 것으로 본다.
+    let plcIsOnline (links: PlcLinkStatus list) (id: string) =
+        links
+        |> List.exists (fun l -> String.Equals(l.Config.Id, id, StringComparison.OrdinalIgnoreCase) && l.State <> Faulted)
+
+    /// 몇 번째 PLC 가 살아 있는지 한 줄로 만든다. (상태 표시줄 · HMI 창)
+    /// 붙지 못한 PLC 도 자리를 지켜야 어느 호기가 빠졌는지 보인다.
+    let plcSummary (links: PlcLinkStatus list) =
+        enabledPlcs ()
+        |> List.map (fun cfg -> sprintf "%s %s" cfg.Id (if plcIsOnline links cfg.Id then "●" else "✖"))
+        |> String.concat "   "
+
+    /// 그 PLC 의 사람이 읽는 이름 (PLC2 · 2호기 세정)
+    let plcLabelOf (id: string) =
+        match state.Plcs |> List.tryFind (fun c -> String.Equals(c.Id, id, StringComparison.OrdinalIgnoreCase)) with
+        | Some cfg -> PlcLink.label cfg
+        | None -> id
+
+    /// 창 하나가 맡은 PLC 를 제목에 붙일 때 쓰는 꼬리표
+    let hmiWindowCaption (plcId: string) =
+        if String.IsNullOrWhiteSpace plcId then I18n.t "hmi.window.all" else plcLabelOf plcId
+
+    /// HMI 창(터치 패널)에도 몇 번째 PLC 가 붙어 있는지 보여 준다.
+    /// 패널만 보고 조작하는 사람이 어느 PLC 가 죽었는지 바로 알아야 한다.
+    let updateHmiWindowPlcs () =
+        if hmiWindows.Count > 0 then
+            let links = plc.LinkStatus
+            let configs = enabledPlcs ()
+            // 붙기 전 / 다 끊긴 뒤에는 몇 대를 붙일지만 적는다.
+            let entries =
+                if links.IsEmpty then []
+                else configs |> List.map (fun c -> c.Id, plcIsOnline links c.Id)
+            let key =
+                if entries.IsEmpty then sprintf "count:%d" configs.Length
+                else
+                    (entries |> List.map (fun (id, ok) -> id + (if ok then "1" else "0")) |> String.concat ",")
+                    + "|" + controlPlcId
+            for h in hmiWindows do
+                if key <> h.PlcsKey then
+                    h.PlcsKey <- key
+                    let p = ThemeService.current ()
+                    h.Plcs.Children.Clear()
+                    if entries.IsEmpty then
+                        if not configs.IsEmpty then
+                            let t = Ui.mono 12.5 (I18n.tf "status.plcs" [| box configs.Length |])
+                            t.Foreground <- Ui.brush p.TextMuted
+                            h.Plcs.Children.Add t
+                    else
+                        // 죽은 PLC 만 빨갛게 짚어 준다. 나머지는 초록으로 둔다.
+                        for (id, ok) in entries do
+                            let t = Ui.mono 12.5 (sprintf "%s %s" id (if ok then "●" else "✖"))
+                            t.FontWeight <- FontWeight.SemiBold
+                            t.Foreground <- Ui.brush (if ok then p.Ok else p.Error)
+                            // 지금 조작이 나가는 PLC 는 한눈에 알아보게 바탕을 깐다.
+                            if String.Equals(id, controlPlcId, StringComparison.OrdinalIgnoreCase) then
+                                t.Background <- Ui.tint p.Accent 0.22
+                                t.Padding <- Thickness(7.0, 1.0, 7.0, 1.0)
+                            h.Plcs.Children.Add t
+                    // 창을 여러 개 띄워 두므로 제목만 봐도 어느 창인지 알아야 한다.
+                    let baseTitle =
+                        projectLabel () + " — " + I18n.t "hmi.window" + " — " + hmiWindowCaption h.PlcId
+                    h.Window.Title <-
+                        if entries.IsEmpty then baseTitle
+                        else baseTitle + "   —   " + plcSummary links
+
+    /// 지금 조작(쓰기)이 나가고 있는 PLC 를 HMI 창 위 띠에 적는다.
+    /// 여러 대를 붙여 두면 누른 버튼이 어느 PLC 로 갔는지가 제일 중요하다.
+    let updateHmiWindowControl () =
+        if hmiWindows.Count > 0 then
+            let p = ThemeService.current ()
+            let running = runningOps.Count > 0
+            let text =
+                if String.IsNullOrWhiteSpace controlPlcId then ""
+                else
+                    sprintf
+                        "%s  %s%s"
+                        (I18n.t (if running then "hmi.controlling" else "hmi.lastControl"))
+                        (plcLabelOf controlPlcId)
+                        (if String.IsNullOrWhiteSpace controlName then "" else "  ·  " + controlName)
+            for h in hmiWindows do
+                h.Control.Text <- text
+                h.Control.Foreground <- Ui.brush (if running then p.Accent else p.TextMuted)
+
     let setStatus (kind: ConnState) (detail: string) =
         commFault <- (kind = Faulted)
         if not (isNull statusText) then
@@ -151,12 +264,23 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             if not (isNull monitorStatus) then
                 monitorStatus.Text <- caption + "   ·   " + detail
                 monitorStatus.Foreground <- Ui.brush fg
-            if not (isNull hmiWindowStatus) then
-                hmiWindowStatus.Text <- caption + "   ·   " + detail
-                hmiWindowStatus.Foreground <- Ui.brush fg
+            for h in hmiWindows do
+                h.Status.Text <- caption + "   ·   " + detail
+                h.Status.Foreground <- Ui.brush fg
+            updateHmiWindowPlcs ()
+            let links = plc.LinkStatus
+            let configs = enabledPlcs ()
             statusProfile.Text <-
-                if String.IsNullOrWhiteSpace plc.ProfileName then ""
-                else I18n.t "conn.profile" + ": " + plc.ProfileName
+                if links.IsEmpty then
+                    // 아직 붙기 전에는 몇 대를 붙일지 보여 준다.
+                    if configs.Length > 1 then I18n.tf "status.plcs" [| box configs.Length |] else ""
+                elif configs.Length <= 1 && links.Length = 1 then
+                    let one = List.head links
+                    if String.IsNullOrWhiteSpace one.ProfileName then ""
+                    else I18n.t "conn.profile" + ": " + one.ProfileName
+                else
+                    // 여러 대면 어느 PLC 가 살아 있는지 한 줄로 본다. (못 붙은 PLC 는 ✖)
+                    plcSummary links
 
     let updateWriteBadge () =
         if not (isNull statusWrite) then
@@ -194,7 +318,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     /// 지금 살아 있는 터치스크린 캔버스들. (HMI 탭 + 운전 중 HMI 창)
     let hmiCanvases () =
         [ if not (isNull hmiDesigner) then yield hmiDesigner.Canvas
-          if not (isNull hmiWindowCanvas) then yield hmiWindowCanvas ]
+          for h in hmiWindows do yield h.Canvas ]
 
     let rebuildCanvases () =
         for c in canvases () do
@@ -204,9 +328,10 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
 
     let refreshValues () =
         let status: CardFactory.RuntimeStatus =
-            { BitOf = (fun addr -> plc.TryBit addr)
-              WordOf = (fun addr -> plc.TryWord addr)
-              CommFault = commFault
+            { BitOf = (fun plcId addr -> plc.TryBit(plcId, addr))
+              WordOf = (fun plcId addr -> plc.TryWord(plcId, addr))
+              // 회선 하나만 죽으면 그 PLC 를 쓰는 카드만 빨갛게 된다.
+              CommFault = (fun plcId -> commFault || plc.IsFaulted plcId)
               Operations = List.ofSeq runningOps.Values }
         for c in canvases () do
             c.RefreshValues status
@@ -215,6 +340,8 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
 
     /// 조작을 시작했다고 알린다. (통합 스위치에 '실행 중' 으로 뜬다)
     let beginOp (vm: ElementVm) (action: string) =
+        controlPlcId <- (if String.IsNullOrWhiteSpace vm.PlcId then plc.DefaultPlcId else vm.PlcId)
+        controlName <- (if String.IsNullOrWhiteSpace vm.Name then vm.Device else vm.Name)
         runningOps.[vm.Id] <-
             { Id = vm.Id
               Name = (if String.IsNullOrWhiteSpace vm.Name then vm.Device else vm.Name)
@@ -222,11 +349,14 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
               Action = action
               Phase = CardFactory.OpRunning
               Message = "" }
+        updateHmiWindowPlcs ()
+        updateHmiWindowControl ()
         refreshValues ()
 
     /// 조작이 끝났다고 알린다. 실패는 vm.Fault 로 남아 계속 빨갛게 보인다.
     let endOp (vm: ElementVm) (_ok: bool) (_message: string) =
         runningOps.Remove vm.Id |> ignore
+        updateHmiWindowControl ()
         refreshValues ()
 
     // ---------- 운전 화면 모니터링 창 ----------
@@ -310,9 +440,8 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
         try
             let project = ProjectIo.load path
             state.LoadProject(project, path)
-            if not (isNull ipBox) then ipBox.Text <- project.PlcIp
-            if not (isNull portBox) then portBox.Value <- decimal project.Port
             if not (isNull cycleBox) then cycleBox.Value <- decimal project.CycleMs
+            updatePlcButton ()
             rebuildCanvases ()
             if not (isNull treeView) then treeView.Rebuild()
             updateTitle ()
@@ -323,8 +452,6 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
 
     let saveProjectTo (path: string) =
         try
-            if not (isNull ipBox) then state.PlcIp <- ipBox.Text.Trim()
-            if not (isNull portBox) && portBox.Value.HasValue then state.Port <- int portBox.Value.Value
             if not (isNull cycleBox) && cycleBox.Value.HasValue then state.CycleMs <- int cycleBox.Value.Value
             ProjectIo.save path (state.ToProject())
             state.ProjectPath <- path
@@ -373,7 +500,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
         let device = vm.Device
         let started = DateTime.Now
         onUi (fun () -> beginOp vm (onOff value))
-        (match plc.WriteBitVerified(device, value) with
+        (match plc.WriteBitVerified(state.PlcIdOf vm, device, value) with
             | Ok readback ->
                 let elapsed = (DateTime.Now - started).TotalMilliseconds
                 onUi (fun () ->
@@ -407,14 +534,15 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     /// 토글은 클릭 순간 PLC의 실제 상태를 읽어 반전한다. (v4 토글 수정과 동일)
     let toggleBitSync (vm: ElementVm) =
         let device = vm.Device
+        let plcId = state.PlcIdOf vm
         let started = DateTime.Now
         onUi (fun () -> beginOp vm (I18n.actionLabel Toggle))
-        (match plc.ReadBitNow device with
+        (match plc.ReadBitNow(plcId, device) with
             | Ok current ->
                 onUi (fun () ->
                     log Info (sprintf "TOGGLE READ %s (%s) = %s  ->  WRITE %s  [%s]" device (xgtName device) (onOff current) (onOff (not current)) vm.Name)
                     refreshValues ())
-                match plc.WriteBitVerified(device, not current) with
+                match plc.WriteBitVerified(plcId, device, not current) with
                 | Ok readback ->
                     let elapsed = (DateTime.Now - started).TotalMilliseconds
                     onUi (fun () ->
@@ -451,7 +579,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
         let started = DateTime.Now
         beginOp vm (I18n.t "btn.write")
         Task.Run(fun () ->
-            match plc.WriteWordVerified(device, raw) with
+            match plc.WriteWordVerified(state.PlcIdOf vm, device, raw) with
             | Ok readback ->
                 let elapsed = (DateTime.Now - started).TotalMilliseconds
                 onUi (fun () ->
@@ -489,7 +617,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     /// 표에서 그 요소의 스위치 동작을 실제로 수행한다.
     let runFromTable (vm: ElementVm) =
         if ItemKind.hasAction vm.Kind && ensureCanWrite () then
-            match plc.TryBit vm.Device with
+            match plc.TryBit(state.PlcIdOf vm, vm.Device) with
             | Some v -> beforeRun.[vm.Id] <- v
             | None -> beforeRun.Remove vm.Id |> ignore
             match vm.Action with
@@ -583,14 +711,26 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
 
     // ---------- 운전 중 HMI 창 ----------
     /// 운전 중에는 터치스크린을 실제 패널처럼 따로 띄운다. 부품 편집은 하지 않고 눌러서 조작만 한다.
-    let closeHmiWindow () =
-        if not (isNull hmiWindow) then
-            let w = hmiWindow
-            hmiWindow <- null
-            w.Close()
+    /// PLC 를 여러 대 붙였으면 PLC 별로 창을 따로 띄워 동시에 조작할 수 있다.
+    let hmiWindowOf (plcId: string) =
+        hmiWindows
+        |> Seq.tryFind (fun h -> String.Equals(h.PlcId, plcId, StringComparison.OrdinalIgnoreCase))
 
-    let openHmiWindow () =
-        if isNull hmiWindow then
+    let closeHmiWindow (plcId: string) =
+        match hmiWindowOf plcId with
+        | Some h -> h.Window.Close()
+        | None -> ()
+
+    /// 띄워 둔 터치 패널 창을 모두 닫는다. (운전을 끝내거나 앱을 닫을 때)
+    let closeHmiWindows () =
+        for h in List.ofSeq hmiWindows do
+            h.Window.Close()
+
+    let openHmiWindow (plcId: string) =
+        match hmiWindowOf plcId with
+        // 이미 떠 있으면 앞으로 가져오기만 한다.
+        | Some h -> h.Window.Activate()
+        | None ->
             let p = ThemeService.current ()
 
             let view =
@@ -604,13 +744,13 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             view.EditMode <- false
             view.ShowGrid <- false
             view.AutoFit <- true
+            // PLC 별 창은 그 PLC 를 쓰는 부품만 그린다. 다른 호기 버튼을 잘못 누르는 사고를 막는다.
+            view.PlcFilter <- plcId
             view.Rebuild()
-            hmiWindowCanvas <- view
 
             let statusText = Ui.mono 11.5 ""
             statusText.Foreground <- Ui.brush p.TextMuted
             statusText.Margin <- Thickness(10.0, 0.0, 10.0, 0.0)
-            hmiWindowStatus <- statusText
 
             let bar =
                 Border(
@@ -621,17 +761,50 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                     Child = statusText
                 )
 
+            // 창 맨 위: 왼쪽은 이 창이 맡은 PLC, 가운데는 붙어 있는 PLC 목록,
+            // 오른쪽은 지금 조작이 나가는 PLC. 패널만 보고 조작하는 사람이 먼저 봐야 할 것들이다.
+            let ownerText = Ui.mono 12.5 (if String.IsNullOrWhiteSpace plcId then "" else plcLabelOf plcId)
+            ownerText.FontWeight <- FontWeight.SemiBold
+            ownerText.Margin <- Thickness(12.0, 0.0, 12.0, 0.0)
+            ownerText.Foreground <- Ui.brush (if String.IsNullOrWhiteSpace plcId then p.TextMuted else p.Accent)
+
+            let controlText = Ui.mono 12.5 ""
+            controlText.Margin <- Thickness(12.0, 0.0, 12.0, 0.0)
+            controlText.Foreground <- Ui.brush p.TextMuted
+
+            let plcsBar = Ui.stackH 14.0 []
+            plcsBar.Margin <- Thickness(12.0, 0.0, 12.0, 0.0)
+            plcsBar.HorizontalAlignment <- HorizontalAlignment.Center
+
+            let topContent = DockPanel(LastChildFill = true)
+            DockPanel.SetDock(ownerText, Dock.Left)
+            DockPanel.SetDock(controlText, Dock.Right)
+            topContent.Children.Add ownerText
+            topContent.Children.Add controlText
+            topContent.Children.Add plcsBar
+
+            let topBar =
+                Border(
+                    Background = Ui.brush p.StatusBar,
+                    BorderBrush = Ui.brush p.Border,
+                    BorderThickness = Thickness(0.0, 0.0, 0.0, 1.0),
+                    Height = 30.0,
+                    Child = topContent
+                )
+
             let root = DockPanel(LastChildFill = true)
+            DockPanel.SetDock(topBar, Dock.Top)
             DockPanel.SetDock(bar, Dock.Bottom)
+            root.Children.Add topBar
             root.Children.Add bar
             root.Children.Add view.Root
 
             // 창은 패널 해상도 그대로 열고, 그 뒤에는 창 크기에 맞춰 저절로 배율이 맞는다.
             let w =
                 Window(
-                    Title = projectLabel () + " — " + I18n.t "hmi.window",
+                    Title = projectLabel () + " — " + I18n.t "hmi.window" + " — " + hmiWindowCaption plcId,
                     Width = float (min 1600 state.HmiWidth) + 16.0,
-                    Height = float (min 1000 state.HmiHeight) + 52.0,
+                    Height = float (min 1000 state.HmiHeight) + 82.0,
                     MinWidth = 360.0,
                     MinHeight = 260.0,
                     Background = Ui.brush p.Window,
@@ -640,26 +813,52 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                     Content = root
                 )
             w.FlowDirection <- (if I18n.isRtl () then FlowDirection.RightToLeft else FlowDirection.LeftToRight)
+
+            let entry =
+                { Window = w
+                  Canvas = view
+                  Status = statusText
+                  Plcs = plcsBar
+                  Owner = ownerText
+                  Control = controlText
+                  PlcId = (if isNull plcId then "" else plcId)
+                  PlcsKey = "" }
+
+            // 창을 여러 개 띄우므로 뒤에 뜨는 창은 조금씩 밀어서 겹치지 않게 한다.
+            let previous = if hmiWindows.Count > 0 then Some hmiWindows.[hmiWindows.Count - 1] else None
+            hmiWindows.Add entry
+
             w.Closed.Add(fun _ ->
-                (match box hmiWindowCanvas with
+                (match box view with
                  | :? IDisposable as d -> d.Dispose()
                  | _ -> ())
-                hmiWindowCanvas <- null
-                hmiWindowStatus <- null
-                hmiWindow <- null
-                log Info "HMI WINDOW CLOSED")
-            w.SizeChanged.Add(fun _ -> if not (isNull hmiWindowCanvas) then hmiWindowCanvas.FitToWindow())
+                hmiWindows.Remove entry |> ignore
+                if obj.ReferenceEquals(hmiWindowForTools, w) then hmiWindowForTools <- null
+                log Info ("HMI WINDOW CLOSED " + hmiWindowCaption entry.PlcId))
+            w.SizeChanged.Add(fun _ -> view.FitToWindow())
 
-            hmiWindow <- w
+            hmiWindowForTools <- w
             w.Show()
+            match previous with
+            | Some prev ->
+                w.WindowStartupLocation <- WindowStartupLocation.Manual
+                w.Position <- PixelPoint(prev.Window.Position.X + 36, prev.Window.Position.Y + 36)
+            | None -> ()
             view.FitToWindow()
             refreshValues ()
-            log Info "HMI WINDOW OPEN"
+            // 다음 스캔을 기다리지 않고 창을 열자마자 PLC 목록을 채운다.
+            updateHmiWindowPlcs ()
+            updateHmiWindowControl ()
+            log Info ("HMI WINDOW OPEN " + hmiWindowCaption plcId)
+
+    /// 보기 메뉴에서 창을 켜고 끈다.
+    let toggleHmiWindow (plcId: string) =
+        match hmiWindowOf plcId with
+        | Some _ -> closeHmiWindow plcId
+        | None -> openHmiWindow plcId
 
     // ---------- 연결 ----------
     let applyConnectionFieldsToState () =
-        if not (isNull ipBox) then state.PlcIp <- ipBox.Text.Trim()
-        if not (isNull portBox) && portBox.Value.HasValue then state.Port <- int portBox.Value.Value
         if not (isNull cycleBox) && cycleBox.Value.HasValue then state.CycleMs <- int cycleBox.Value.Value
 
     let setConnectedUi (isConnected: bool) =
@@ -667,8 +866,8 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
         // 연결과 해제를 각각 두고, 지금 할 수 있는 쪽만 켠다.
         if not (isNull connectButton) then connectButton.IsEnabled <- not isConnected
         if not (isNull disconnectButton) then disconnectButton.IsEnabled <- isConnected
-        if not (isNull ipBox) then ipBox.IsEnabled <- not isConnected
-        if not (isNull portBox) then portBox.IsEnabled <- not isConnected
+        // 운전 중에는 PLC 설정을 바꾸지 못하게 잠근다. (연결을 끊고 고쳐야 한다)
+        if not (isNull plcButton) then plcButton.IsEnabled <- not isConnected
 
     /// 지난 통신 오류 점등을 모두 끈다. (연결/해제할 때)
     let clearFaults () =
@@ -680,7 +879,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
         plc.Disconnect()
         clearFaults ()
         closeMonitorWindow ()
-        closeHmiWindow ()
+        closeHmiWindows ()
         setConnectedUi false
         writeEnabled <- false
         if not (isNull writeToggle) then
@@ -694,11 +893,9 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     let connect () =
         applyConnectionFieldsToState ()
         setStatus Connecting ""
-        let ip = state.PlcIp
-        let port = state.Port
-        let cycle = state.CycleMs
+        let configs = state.Plcs
         Task.Run(fun () ->
-            let result = plc.Connect(ip, port, cycle)
+            let result = plc.Connect configs
             onUi (fun () ->
                 match result with
                 | Ok _ ->
@@ -709,13 +906,42 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                     openMonitorWindow ()
                     // 터치스크린을 그려 뒀으면 HMI 창도 함께 띄운다.
                     // 부품이 하나도 없으면 빈 창만 뜨므로 열지 않는다. (보기 메뉴에서 언제든 열 수 있다)
-                    if state.HmiParts.Count > 0 then openHmiWindow ()
+                    if state.HmiParts.Count > 0 then openHmiWindow ""
                     refreshValues ()
                 | Error message ->
                     setConnectedUi false
                     setStatus Faulted message
                     refreshValues ()))
         |> ignore
+
+    /// PLC 설정 창. 운전 중에는 열지 않는다. (연결을 끊고 고쳐야 한다)
+    let openPlcSettings () =
+        if connected then
+            Dialogs.info win (I18n.t "dlg.plc.title") (I18n.t "msg.plcLocked") |> ignore
+        else
+            task {
+                let! result = PlcDialog.edit win state.Plcs
+                match result with
+                | Some updated ->
+                    state.SetPlcs updated
+                    updatePlcButton ()
+                    if not (isNull cycleBox) then cycleBox.Value <- decimal state.CycleMs
+                    plc.CycleMs <- state.CycleMs
+                    if not (isNull treeView) then treeView.Rebuild()
+                    if not (isNull propertyView) then propertyView.Reload()
+                    if not (isNull tableView) then tableView.RefreshPlcColumn()
+                    rebuildCanvases ()
+                    refreshValues ()
+                    updateTitle ()
+                    log Info (
+                        "PLC SETUP  "
+                        + (updated
+                           |> List.map (fun l ->
+                               sprintf "%s=%s %s" l.Id (PlcDialog.kindLabel l.Kind) (PlcLink.endpoint l))
+                           |> String.concat "  |  "))
+                | None -> ()
+            }
+            |> ignore
 
     // ---------- 편집 명령 ----------
     let applyToScreen (announce: bool) =
@@ -776,7 +1002,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             let! yes = Dialogs.confirm win (I18n.t "cmd.sample") (I18n.t "msg.restoreSample")
             if yes then
                 state.LoadProject(Project.createDefault (), state.ProjectPath)
-                if not (isNull ipBox) then ipBox.Text <- state.PlcIp
+                updatePlcButton ()
                 rebuildCanvases ()
                 if not (isNull treeView) then treeView.Rebuild()
                 state.MarkDirty()
@@ -1077,10 +1303,23 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
             Ui.checkableMenuItem (I18n.t "cmd.monitorWindow") (not (isNull monitorWindow)) (fun () ->
                 if isNull monitorWindow then openMonitorWindow () else closeMonitorWindow ()))
         |> ignore
-        viewMenu.Items.Add(
-            Ui.checkableMenuItem (I18n.t "hmi.window") (not (isNull hmiWindow)) (fun () ->
-                if isNull hmiWindow then openHmiWindow () else closeHmiWindow ()))
-        |> ignore
+        // HMI 창은 PLC 별로 따로 띄울 수 있다. 메뉴를 열 때마다 지금 PLC 목록으로 다시 채운다.
+        let hmiMenu = MenuItem(Header = I18n.t "hmi.window", FontFamily = Ui.uiFont)
+        let fillHmiMenu () =
+            hmiMenu.Items.Clear()
+            hmiMenu.Items.Add(
+                Ui.checkableMenuItem (I18n.t "hmi.window.all") ((hmiWindowOf "").IsSome) (fun () -> toggleHmiWindow ""))
+            |> ignore
+            let configs = enabledPlcs ()
+            if configs.Length > 1 then
+                hmiMenu.Items.Add(Separator()) |> ignore
+                for cfg in configs do
+                    hmiMenu.Items.Add(
+                        Ui.checkableMenuItem (PlcLink.label cfg) ((hmiWindowOf cfg.Id).IsSome) (fun () -> toggleHmiWindow cfg.Id))
+                    |> ignore
+        fillHmiMenu ()
+        hmiMenu.SubmenuOpened.Add(fun _ -> fillHmiMenu ())
+        viewMenu.Items.Add hmiMenu |> ignore
         menu.Items.Add viewMenu |> ignore
 
         let onlineMenu = MenuItem(Header = I18n.t "menu.online")
@@ -1105,8 +1344,38 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     let buildToolbar () =
         let p = ThemeService.current ()
 
-        ipBox <- TextBox(Text = state.PlcIp, Width = 148.0, FontFamily = Ui.monoFont)
-        portBox <- NumericUpDown(Minimum = 1m, Maximum = 65535m, Value = decimal state.Port, Increment = 1m, FormatString = "0", Width = 124.0)
+        // PLC 를 여러 대 붙일 수 있으므로 IP/포트 칸 대신 설정 창을 여는 버튼 하나만 둔다.
+        plcButton <- Ui.button "" [ "tool" ] (fun () -> openPlcSettings ())
+        plcButton.MinWidth <- 210.0
+        updatePlcButton <-
+            fun () ->
+                if not (isNull plcButton) then
+                    let all = state.Plcs
+                    let caption =
+                        match all with
+                        | [] -> I18n.t "conn.manage"
+                        | [ one ] -> sprintf "%s  %s" (PlcDialog.kindLabel one.Kind) (PlcLink.endpoint one)
+                        | many ->
+                            sprintf
+                                "%s  ·  %s"
+                                (I18n.tf "status.plcs" [| box (many |> List.filter (fun l -> l.Enabled) |> List.length) |])
+                                (many |> List.map (fun l -> l.Id) |> String.concat " ")
+                    plcButton.Content <- caption
+                    ToolTip.SetTip(
+                        plcButton,
+                        I18n.t "dlg.plc.title"
+                        + "\n"
+                        + (all
+                           |> List.map (fun l ->
+                               sprintf
+                                   "%s  %s  %s%s"
+                                   (PlcLink.label l)
+                                   (PlcDialog.kindLabel l.Kind)
+                                   (PlcLink.endpoint l)
+                                   (if l.Enabled then "" else "  (" + I18n.t "conn.unused" + ")"))
+                           |> String.concat "\n"))
+        updatePlcButton ()
+
         cycleBox <-
             NumericUpDown(
                 Minimum = decimal Limits.minCycleMs,
@@ -1282,8 +1551,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
                   item (I18n.t "cmd.apply") (fun () -> applyToScreen true |> ignore) ]
 
         let items: Control list =
-            [ group [ labelled (I18n.t "conn.ip") ipBox
-                      labelled (I18n.t "conn.port") portBox
+            [ group [ labelled (I18n.t "conn.plcs") plcButton
                       labelled (I18n.t "conn.cycle") cycleBox
                       connectButton
                       disconnectButton
@@ -1607,7 +1875,9 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
 
     plc.ValuesChanged.Add(fun () -> onUi refreshValues)
 
-    plc.SetScanProvider(fun () -> state.ScanAddresses())
+    plc.SetScanPlan(fun () ->
+        state.ScanPlan()
+        |> List.map (fun (plcId, bits, words) -> { PlcId = plcId; Bits = bits; Words = words }))
 
     state.StructureChanged.Add(fun () ->
         updateItemCount ()
@@ -1715,7 +1985,7 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     win.Closing.Add(fun _ ->
         persistSettings ()
         closeMonitorWindow ()
-        closeHmiWindow ()
+        closeHmiWindows ()
         plc.Disconnect())
 
     // ---------- 첫 로드 ----------
@@ -1731,6 +2001,11 @@ let createWithRebuild (initialSettings: AppSettings) : Window * (unit -> unit) =
     log Info (sprintf "%s — %s" (I18n.t "app.title") (I18n.t "app.edition"))
     log Info ("PROJECT " + startupPath)
     log Warn (I18n.t "safety.banner")
+
+    // [임시 · 시험용] XGBHMI_AUTOCONNECT=1 이면 창이 뜨자마자 [연결] 을 누른 것처럼 동작한다.
+    // 가짜 PLC(tools/FakePlc) 로 화면을 확인하기 위한 것이므로 실제 설비 배포 전에 지운다.
+    if Environment.GetEnvironmentVariable "XGBHMI_AUTOCONNECT" = "1" then
+        win.Opened.Add(fun _ -> connect ())
 
     win, (fun () -> rebuildUi ())
 

@@ -38,8 +38,8 @@ type AppState() =
     let hmiScreenChanged = Event<unit>()
 
     let mutable projectPath = ""
-    let mutable plcIp = Limits.defaultIp
-    let mutable port = Limits.defaultPort
+    /// 붙일 PLC 목록. 이더넷·RS-232C·RS-485 를 섞어 여러 대를 쓸 수 있다.
+    let mutable plcs: PlcLink list = [ PlcLink.empty ]
     let mutable cycleMs = Limits.defaultCycleMs
     let mutable copyBuffer: HmiItem list = []
     let mutable pasteSerial = 0
@@ -49,6 +49,7 @@ type AppState() =
 
     let screenChanged = Event<unit>()
     let historyChanged = Event<unit>()
+    let plcsChanged = Event<unit>()
 
     // 되돌리기 / 다시 실행 (요소 목록 전체를 스냅숏으로 보관한다)
     let undoStack = System.Collections.Generic.Stack<EditSnapshot>()
@@ -203,22 +204,72 @@ type AppState() =
         with get () = projectPath
         and set v = projectPath <- v
 
+    // ---------- PLC 목록 ----------
+
+    member _.Plcs = plcs
+    member _.PlcsChanged = plcsChanged.Publish
+
+    /// PLC 설정 대화상자에서 고친 목록을 받아 넣는다.
+    /// 없어진 PLC 를 가리키던 요소는 첫 번째 PLC 로 옮긴다.
+    member _.SetPlcs(list: PlcLink list) =
+        let normalized = Project.normalizePlcs { Project.empty with Plcs = list }
+        plcs <- normalized
+        for e in elements do
+            let resolved = Project.resolvePlcId normalized e.PlcId
+            if e.PlcId <> resolved then e.PlcId <- resolved
+        match normalized with
+        | first :: _ -> cycleMs <- first.CycleMs
+        | [] -> ()
+        setDirty true
+        plcsChanged.Trigger()
+
+    /// 요소가 실제로 쓰는 PLC 이름표 (비어 있으면 첫 번째 PLC)
+    member _.PlcIdOf(vm: ElementVm) = Project.resolvePlcId plcs vm.PlcId
+
+    /// 첫 번째 PLC (기본 PLC)
+    member _.PrimaryPlc =
+        match plcs with
+        | first :: _ -> first
+        | [] -> PlcLink.empty
+
+    /// 화면에 보여 줄 PLC 목록 요약 (툴바 버튼 / 상태 표시줄)
+    member _.PlcSummary =
+        match plcs with
+        | [] -> ""
+        | [ one ] -> PlcLink.endpoint one
+        | many -> sprintf "%s + %d" (PlcLink.endpoint (List.head many)) (many.Length - 1)
+
+    /// v6 호환용: 첫 이더넷 PLC 의 IP / 포트
     member _.PlcIp
-        with get () = plcIp
+        with get () =
+            match plcs |> List.tryFind (fun l -> l.Kind = LinkEthernet) with
+            | Some l -> l.Ip
+            | None -> ""
         and set v =
-            plcIp <- v
+            plcs <-
+                plcs
+                |> List.map (fun l -> if l.Kind = LinkEthernet && l.Ip <> v then { l with Ip = v } else l)
             setDirty true
+            plcsChanged.Trigger()
 
     member _.Port
-        with get () = port
+        with get () =
+            match plcs |> List.tryFind (fun l -> l.Kind = LinkEthernet) with
+            | Some l -> l.Port
+            | None -> Limits.defaultPort
         and set v =
-            port <- v
+            plcs <-
+                plcs
+                |> List.map (fun l -> if l.Kind = LinkEthernet && l.Port <> v then { l with Port = v } else l)
             setDirty true
+            plcsChanged.Trigger()
 
+    /// 폴링 주기. 붙어 있는 PLC 전부에 적용한다.
     member _.CycleMs
         with get () = cycleMs
         and set v =
             cycleMs <- v
+            plcs <- plcs |> List.map (fun l -> { l with CycleMs = v })
             setDirty true
 
     member _.CopyBuffer = copyBuffer
@@ -278,9 +329,8 @@ type AppState() =
         hmiHeight <- p.Hmi.Height
         hmiBackground <- p.Hmi.Background
         hmiCopyBuffer <- []
-        plcIp <- p.PlcIp
-        port <- p.Port
-        cycleMs <- p.CycleMs
+        plcs <- Project.normalizePlcs p
+        cycleMs <- (match plcs with first :: _ -> first.CycleMs | [] -> p.CycleMs)
         projectPath <- path
         copyBuffer <- []
         pasteSerial <- 0
@@ -291,11 +341,13 @@ type AppState() =
         hmiScreenChanged.Trigger()
         hmiStructureChanged.Trigger()
         hmiSelectionChanged.Trigger()
+        plcsChanged.Trigger()
 
-    member _.ToProject() : HmiProject =
-        { PlcIp = plcIp
-          Port = port
+    member this.ToProject() : HmiProject =
+        { PlcIp = this.PlcIp
+          Port = this.Port
           CycleMs = cycleMs
+          Plcs = plcs
           Items = elements |> Seq.map (fun e -> Item.normalize (e.ToItem())) |> List.ofSeq
           ScreenWidth = screenWidth
           ScreenHeight = screenHeight
@@ -305,6 +357,7 @@ type AppState() =
                   Height = hmiHeight
                   Background = hmiBackground
                   Parts = currentParts () } }
+        |> Project.normalizeLinks
         |> Project.fitScreen
 
     /// 전체 요소 검사. 첫 오류 메시지를 돌려준다. (원본 ValidateItem 규칙)
@@ -319,28 +372,40 @@ type AppState() =
         | Some m -> Error m
         | None -> Ok()
 
-    member _.ScanAddresses() =
-        let bits, words = Project.scanAddresses (elements |> Seq.map (fun e -> e.ToItem()))
-        // 램프 배열은 연결한 요소의 주소에서 시작해 연속한 비트를 함께 본다.
-        // 그 비트들은 어느 요소에도 없으므로 여기서 폴링 목록에 넣어 줘야 값이 들어온다.
-        let extra = ResizeArray<string>(bits)
-        let has (v: string) =
-            extra |> Seq.exists (fun s -> String.Equals(s, v, StringComparison.OrdinalIgnoreCase))
+    /// PLC 별 폴링 목록. 여러 대를 붙였을 때 회선마다 제 주소만 읽게 나눈다.
+    member _.ScanPlan() =
+        let items = elements |> Seq.map (fun e -> e.ToItem()) |> List.ofSeq
+        let groups = Project.scanAddressesByPlc plcs items
+
+        // 램프 배열의 연속 비트는 어느 요소에도 없으므로 그 요소가 쓰는 PLC 목록에 넣어 줘야 값이 들어온다.
+        let extras = Collections.Generic.Dictionary<string, ResizeArray<string>>(StringComparer.OrdinalIgnoreCase)
         for part in hmiParts do
             if part.Kind = PartLampArray && part.Count > 1 then
                 match elements |> Seq.tryFind (fun e -> e.Id = part.TargetId) with
                 | Some target when not (String.IsNullOrWhiteSpace target.Device) ->
+                    let id = Project.resolvePlcId plcs target.PlcId
+                    if not (extras.ContainsKey id) then extras.[id] <- ResizeArray<string>()
                     for i in 1 .. part.Count - 1 do
-                        try
-                            let address = XgbHmi.Protocol.Address.offsetBit target.Device i
-                            if not (has address) then extra.Add address
-                        with _ -> ()
+                        try extras.[id].Add(XgbHmi.Protocol.Address.offsetBit target.Device i) with _ -> ()
                 | _ -> ()
-        List.ofSeq extra, words
+
+        groups
+        |> List.map (fun (plcId, bits, words) ->
+            let all = ResizeArray<string>(bits)
+            let has (v: string) =
+                all |> Seq.exists (fun s -> String.Equals(s, v, StringComparison.OrdinalIgnoreCase))
+            (match extras.TryGetValue plcId with
+             | true, list ->
+                 for a in list do
+                     if not (has a) then all.Add a
+             | _ -> ())
+            plcId, List.ofSeq all, words)
 
     // ---------- 요소 편집 ----------
 
     member private _.AddItem(item: HmiItem, select: bool) =
+        // 새 요소가 어느 PLC 를 쓸지 처음부터 채워 둔다. (표/속성창에서 빈 칸으로 보이지 않게)
+        let item = { item with PlcId = Project.resolvePlcId plcs item.PlcId }
         let vm = attach (ElementVm item)
         elements.Add vm
         if select then selection.Add vm

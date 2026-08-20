@@ -66,10 +66,27 @@ type ProjectTreeView(state: AppState) =
         rootTitle.FontWeight <- FontWeight.Bold
         root.Header <- rootTitle
 
-        let connection = TreeViewItem(IsExpanded = false)
-        let connText = Ui.text (sprintf "%s  —  %s:%d" (I18n.t "tree.connection") state.PlcIp state.Port)
+        // 붙일 PLC 를 전부 보여 준다. (이더넷 / RS-232C / RS-485 를 섞어 쓸 수 있다)
+        let connection = TreeViewItem(IsExpanded = (state.Plcs.Length > 1))
+        let connText =
+            Ui.text (
+                sprintf
+                    "%s  —  %s"
+                    (I18n.t "tree.connection")
+                    (match state.Plcs with
+                     | [] -> ""
+                     | [ one ] -> PlcLink.endpoint one
+                     | many -> I18n.tf "status.plcs" [| box many.Length |])
+            )
         connText.FontSize <- 12.5
         connection.Header <- connText
+        for link in state.Plcs do
+            let name = Ui.text (PlcLink.label link)
+            name.FontSize <- 12.0
+            if not link.Enabled then name.Opacity <- 0.45
+            let detail = Ui.mono 10.5 (PlcDialog.kindLabel link.Kind + "  " + PlcLink.endpoint link)
+            detail.Foreground <- Ui.brush p.TextMuted
+            connection.Items.Add(TreeViewItem(Header = Ui.stackH 7.0 [ name; detail ])) |> ignore
         root.Items.Add connection |> ignore
 
         let screen = TreeViewItem(IsExpanded = true)
@@ -110,6 +127,7 @@ type ProjectTreeView(state: AppState) =
                 | _ -> ())
 
         subscriptions.Add(state.StructureChanged.Subscribe(fun () -> build ()))
+        subscriptions.Add(state.PlcsChanged.Subscribe(fun () -> build ()))
 
         subscriptions.Add(
             state.ItemChanged.Subscribe(fun (vm, prop) ->

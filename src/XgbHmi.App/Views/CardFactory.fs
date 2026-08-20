@@ -46,10 +46,11 @@ type CardCallbacks =
 
 /// 한 번 갱신할 때 카드가 참고하는 실행 상태 한 벌
 type RuntimeStatus =
-    { BitOf: string -> bool option
-      WordOf: string -> uint16 option
-      /// PLC 통신 자체가 오류면 모든 카드를 빨간색으로 점등한다.
-      CommFault: bool
+    { /// (PLC 이름표, 주소) 로 지금 값을 찾는다. PLC 를 여러 대 붙여도 값이 섞이지 않는다.
+      BitOf: string -> string -> bool option
+      WordOf: string -> string -> uint16 option
+      /// 그 PLC 의 통신이 오류면 그 PLC 를 쓰는 카드를 빨간색으로 점등한다.
+      CommFault: string -> bool
       /// 지금 돌고 있는 조작 전부. 통합 스위치가 한 줄씩 보여 준다.
       Operations: RunningOp list }
 
@@ -583,13 +584,14 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
     let faultOf (status: RuntimeStatus) =
         match vm.Fault with
         | Some m -> Some m
-        | None -> if status.CommFault then Some(I18n.t "status.error") else None
+        | None -> if status.CommFault vm.PlcId then Some(I18n.t "status.error") else None
 
     // ---- PLC 값 반영 ----
     let refresh (status: RuntimeStatus) =
         lastStatus.Value <- Some status
-        let bitOf = status.BitOf
-        let wordOf = status.WordOf
+        // 이 카드가 쓰는 PLC 의 값만 본다.
+        let bitOf = status.BitOf vm.PlcId
+        let wordOf = status.WordOf vm.PlcId
         match vm.Kind with
         | Text -> ()
         | Switch ->
@@ -648,11 +650,12 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
                         | None -> if latest.IsEmpty then -1 else 0
 
             // ---- 지켜보는 목록 ----
-            let bitText (device: string) =
+            // 대상은 다른 PLC 에 있을 수도 있으므로 요소마다 그 요소의 PLC 에서 값을 찾는다.
+            let bitText (t: ElementVm) (device: string) =
                 if String.IsNullOrWhiteSpace device then ""
                 else
                     let v =
-                        match bitOf device with
+                        match status.BitOf t.PlcId device with
                         | Some true -> I18n.t "state.on"
                         | Some false -> I18n.t "state.off"
                         | None -> I18n.t "state.unknown"
@@ -661,22 +664,22 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
             /// 디바이스와 상태확인 디바이스 값을 한 줄로. (WORD 요소면 값 그대로)
             let deviceLine (t: ElementVm) =
                 if ItemKind.isWord t.Kind then
-                    match wordOf t.Device with
+                    match status.WordOf t.PlcId t.Device with
                     | Some w -> sprintf "%s = %d" t.Device (int16 w)
                     | None -> t.Device + " = " + I18n.t "state.unknown"
                 else
-                    let a = bitText t.Device
-                    let b = bitText t.MonitorDevice
+                    let a = bitText t t.Device
+                    let b = bitText t t.MonitorDevice
                     if b = "" then a else a + "   ·   " + b
 
             let running = status.Operations |> List.map (fun op -> op.Id, op) |> dict
 
             let liveOf (t: ElementVm) =
-                if String.IsNullOrWhiteSpace t.MonitorDevice then bitOf t.Device
+                if String.IsNullOrWhiteSpace t.MonitorDevice then status.BitOf t.PlcId t.Device
                 else
-                    match bitOf t.MonitorDevice with
+                    match status.BitOf t.PlcId t.MonitorDevice with
                     | Some v -> Some v
-                    | None -> bitOf t.Device
+                    | None -> status.BitOf t.PlcId t.Device
 
             // 화면에 있는 요소를 전부 담는다. 급한 것(오류 > 실행 중 > 켜짐)이 위로 오고,
             // 동작 중이 아닌 것은 흰색(테마 기본 글자색)으로 아래에 붙는다.
@@ -692,7 +695,7 @@ let create (p: Palette) (vm: ElementVm) (cb: CardCallbacks) : RuntimeCard =
                             | _ ->
                                 if ItemKind.isWord t.Kind then
                                     let v =
-                                        match wordOf t.Device with
+                                        match status.WordOf t.PlcId t.Device with
                                         | Some w -> string (int16 w)
                                         | None -> I18n.t "state.unknown"
                                     3, p.Text, t.Name + " · " + v, ""

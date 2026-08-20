@@ -13,6 +13,7 @@ type ElementVm(item: HmiItem) as this =
 
     let mutable id = item.Id
     let mutable enabled = item.Enabled
+    let mutable plcId = item.PlcId
     let mutable visible = item.Visible
     let mutable kind = item.Kind
     let mutable name = item.Name
@@ -49,6 +50,16 @@ type ElementVm(item: HmiItem) as this =
                 beforeChange ()
                 enabled <- v
                 raise' "Enabled"
+
+    /// 어느 PLC 를 쓰는지 (PlcLink.Id). 비어 있으면 첫 번째 PLC.
+    member _.PlcId
+        with get () = plcId
+        and set (v: string) =
+            let v = if isNull v then "" else v.Trim()
+            if plcId <> v then
+                beforeChange ()
+                plcId <- v
+                raise' "PlcId"
 
     /// 운전 화면에 카드로 띄울지
     member _.Visible
@@ -191,6 +202,7 @@ type ElementVm(item: HmiItem) as this =
     member _.ToItem() : HmiItem =
         { Id = id
           Enabled = enabled
+          PlcId = plcId
           Visible = visible
           Kind = kind
           Name = name
